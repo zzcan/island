@@ -7,6 +7,8 @@ import IslandCore
 final class AppModel: ObservableObject {
     @Published private(set) var sessions: [Session] = []
     @Published private(set) var icon: IconState = .idle
+    @Published private(set) var display: IslandDisplay = .from([])
+    @Published private(set) var eventTick: Int = 0
 
     private let store = SessionStore()
     private let notifier = Notifier()
@@ -37,7 +39,10 @@ final class AppModel: ObservableObject {
     func handle(_ msg: HookMessage) {
         let request = store.apply(msg, now: Date())
         refresh()
-        if let request { notifier.post(request) }
+        if let request {
+            eventTick &+= 1
+            notifier.post(request)
+        }
     }
 
     func jump(sessionId: String) {
@@ -48,5 +53,6 @@ final class AppModel: ObservableObject {
     private func refresh() {
         sessions = store.sessions.values.sorted { $0.lastActivity > $1.lastActivity }
         icon = store.iconState
+        display = IslandDisplay.from(Array(store.sessions.values))
     }
 }
