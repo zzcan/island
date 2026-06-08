@@ -35,7 +35,9 @@ final class FloatingIslandPanel {
 
     private func reposition() {
         guard let screen = NSScreen.main else { return }
-        let vf = screen.frame
+        // visibleFrame excludes the menu bar so the capsule sits just below it,
+        // not hidden behind the menu bar / notch (screen.frame would do that).
+        let vf = screen.visibleFrame
         let size = panel.frame.size
         panel.setFrameOrigin(NSPoint(x: vf.midX - size.width / 2,
                                      y: vf.maxY - size.height))

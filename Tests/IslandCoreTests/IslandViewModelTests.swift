@@ -30,6 +30,6 @@ import Foundation
 
     @Test func rowsMapTitleAndStatus() {
         let d = IslandDisplay.from([session("a", .needsInput, 1, title: "proj")])
-        #expect(d.rows.first == IslandRow(id: "a", title: "proj", status: .needsInput))
+        #expect(d.rows.first == IslandRow(id: "a", title: "proj", status: .needsInput, lastActivity: Date(timeIntervalSince1970: 1)))
     }
 }

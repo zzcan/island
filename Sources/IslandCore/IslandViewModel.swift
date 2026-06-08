@@ -4,8 +4,9 @@ public struct IslandRow: Equatable, Identifiable, Sendable {
     public let id: String
     public let title: String
     public let status: SessionStatus
-    public init(id: String, title: String, status: SessionStatus) {
-        self.id = id; self.title = title; self.status = status
+    public let lastActivity: Date
+    public init(id: String, title: String, status: SessionStatus, lastActivity: Date) {
+        self.id = id; self.title = title; self.status = status; self.lastActivity = lastActivity
     }
 }
 
@@ -25,6 +26,6 @@ public struct IslandDisplay: Equatable, Sendable {
             hidden: sorted.isEmpty,
             pillSymbol: IconState.aggregate(sorted).symbolName,
             pillCount: sorted.count,
-            rows: sorted.map { IslandRow(id: $0.id, title: $0.title, status: $0.status) })
+            rows: sorted.map { IslandRow(id: $0.id, title: $0.title, status: $0.status, lastActivity: $0.lastActivity) })
     }
 }
