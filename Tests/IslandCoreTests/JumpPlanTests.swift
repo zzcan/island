@@ -15,7 +15,7 @@ import Foundation
     @Test func cmuxOnly() {
         let s = session(cmux: CmuxContext(workspaceId: "w1", surfaceId: nil, socketPath: "/tmp/c.sock"), tmux: nil)
         #expect(JumpPlan.commands(for: s) == [
-            Command(executable: "cmux", arguments: ["select-workspace", "w1"],
+            Command(executable: "cmux", arguments: ["select-workspace", "--workspace", "w1"],
                     environment: ["CMUX_SOCKET_PATH": "/tmp/c.sock"]),
         ])
     }
@@ -25,7 +25,7 @@ import Foundation
             cmux: CmuxContext(workspaceId: "w1", surfaceId: nil, socketPath: "/tmp/c.sock"),
             tmux: TmuxContext(pane: "%3", window: "1", session: "main"))
         #expect(JumpPlan.commands(for: s) == [
-            Command(executable: "cmux", arguments: ["select-workspace", "w1"],
+            Command(executable: "cmux", arguments: ["select-workspace", "--workspace", "w1"],
                     environment: ["CMUX_SOCKET_PATH": "/tmp/c.sock"]),
             Command(executable: "tmux", arguments: ["select-window", "-t", "main:1"], environment: [:]),
             Command(executable: "tmux", arguments: ["select-pane", "-t", "%3"], environment: [:]),
