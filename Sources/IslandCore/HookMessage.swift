@@ -9,11 +9,13 @@ public struct HookMessage: Codable, Equatable, Sendable {
     public let message: String?
     public let cmux: CmuxContext?
     public let tmux: TmuxContext?
+    public let prompt: String?
 
     public init(event: IslandEvent, sessionId: String, cwd: String?, title: String?,
-                message: String?, cmux: CmuxContext?, tmux: TmuxContext?) {
+                message: String?, cmux: CmuxContext?, tmux: TmuxContext?,
+                prompt: String? = nil) {
         self.event = event; self.sessionId = sessionId; self.cwd = cwd; self.title = title
-        self.message = message; self.cmux = cmux; self.tmux = tmux
+        self.message = message; self.cmux = cmux; self.tmux = tmux; self.prompt = prompt
     }
 
     /// Pure builder. `tmux` is passed in (the caller resolves it via a side-effecting CLI call)
@@ -31,6 +33,6 @@ public struct HookMessage: Codable, Equatable, Sendable {
         let title = input.cwd.map { ($0 as NSString).lastPathComponent }
 
         return HookMessage(event: event, sessionId: sid, cwd: input.cwd, title: title,
-                           message: input.message, cmux: cmux, tmux: tmux)
+                           message: input.message, cmux: cmux, tmux: tmux, prompt: input.prompt)
     }
 }

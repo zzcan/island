@@ -81,4 +81,12 @@ import Foundation
         store.clearAll()
         #expect(store.sessions.isEmpty)
     }
+
+    @Test func applyingPromptStoresLastPrompt() {
+        let store = SessionStore()
+        let m = HookMessage(event: .userPromptSubmit, sessionId: "s1", cwd: "/Users/me/proj",
+                            title: "proj", message: nil, cmux: nil, tmux: nil, prompt: "do X")
+        _ = store.apply(m, now: t0)
+        #expect(store.sessions["s1"]?.lastPrompt == "do X")
+    }
 }

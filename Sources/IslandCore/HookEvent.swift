@@ -18,6 +18,7 @@ public struct ClaudeHookInput: Codable, Equatable, Sendable {
     public let cwd: String?
     public let hook_event_name: String?
     public let message: String?
+    public let prompt: String?
 
     public static func decode(_ data: Data) throws -> ClaudeHookInput {
         try JSONDecoder().decode(ClaudeHookInput.self, from: data)

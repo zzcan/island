@@ -64,7 +64,7 @@ struct IslandView: View {
 
     private var expandedPanel: some View {
         TimelineView(.periodic(from: Date(), by: 60)) { context in
-            VStack(spacing: 0) {
+            VStack(spacing: 10) {
                 ForEach(model.display.rows) { row in
                     Button { model.jump(sessionId: row.id) } label: {
                         rowView(row: row, now: context.date)
@@ -72,9 +72,9 @@ struct IslandView: View {
                     .buttonStyle(.plain)
                 }
             }
-            .padding(.vertical, 6)
-            .frame(width: 320)
-            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 22))
+            .padding(12)
+            .frame(width: 440)
+            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 20))
             .foregroundStyle(.white)
         }
     }
@@ -82,29 +82,46 @@ struct IslandView: View {
     // MARK: - Row view
 
     private func rowView(row: IslandRow, now: Date) -> some View {
-        HStack(spacing: 10) {
-            statusGlyph(row.status)
-                .frame(width: 18, height: 18)
-
-            VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: 4) {
+            // Line 1: title + badges + elapsed
+            HStack(spacing: 6) {
                 Text(row.title)
-                    .font(.system(size: 13, weight: .bold))
+                    .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(.white)
                     .lineLimit(1)
-                Text("Claude · cmux")
-                    .font(.caption)
+                    .truncationMode(.tail)
+                Spacer(minLength: 8)
+                badge("Claude")
+                badge(row.terminal)
+                Text(elapsedString(from: row.lastActivity, to: now))
+                    .font(.caption2)
                     .foregroundStyle(.secondary)
             }
-
-            Spacer(minLength: 0)
-
-            Text(elapsedString(from: row.lastActivity, to: now))
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            // Line 2: status glyph + prompt preview
+            HStack(spacing: 6) {
+                statusGlyph(row.status)
+                Text("你：" + (row.prompt ?? "—"))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+            }
         }
         .padding(.vertical, 6)
-        .padding(.horizontal, 10)
+        .padding(.horizontal, 8)
         .contentShape(Rectangle())
+        .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 10))
+    }
+
+    // MARK: - Badge helper
+
+    private func badge(_ text: String) -> some View {
+        Text(text)
+            .font(.system(size: 10, weight: .medium))
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(.white.opacity(0.12), in: Capsule())
+            .foregroundStyle(.white.opacity(0.85))
     }
 
     // MARK: - Status glyph
@@ -114,16 +131,18 @@ struct IslandView: View {
         switch status {
         case .done:
             Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: 11))
                 .foregroundStyle(.green)
         case .needsInput:
             Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 11))
                 .foregroundStyle(.yellow)
         case .working:
             ProgressView()
-                .controlSize(.small)
-                .tint(.blue)
+                .controlSize(.mini)
         case .idle:
-            Image(systemName: "circle")
+            Image(systemName: "circle.fill")
+                .font(.system(size: 11))
                 .foregroundStyle(.gray)
         }
     }

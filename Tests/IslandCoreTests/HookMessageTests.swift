@@ -73,4 +73,10 @@ import Foundation
         let decoded = try JSONDecoder().decode(HookMessage.self, from: data)
         #expect(decoded == original)
     }
+
+    @Test func buildCapturesPrompt() {
+        let json = #"{"session_id":"s1","hook_event_name":"UserPromptSubmit","prompt":"hello world"}"#
+        let msg = HookMessage.build(stdin: Data(json.utf8), env: [:], tmux: nil)
+        #expect(msg?.prompt == "hello world")
+    }
 }
