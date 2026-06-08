@@ -3,7 +3,7 @@ import Foundation
 public struct ProcessError: Error { public let code: Int32; public let stderr: String }
 
 /// Real CommandRunner. Resolves the executable via /usr/bin/env so PATH is honored.
-public struct ProcessRunner: CommandRunner {
+public struct ProcessRunner: CommandRunner, Sendable {
     public init() {}
 
     @discardableResult

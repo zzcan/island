@@ -10,14 +10,16 @@ struct Jumper {
     init(runner: CommandRunner = ProcessRunner()) { self.runner = runner }
 
     func jump(to session: Session) {
-        for cmd in JumpPlan.commands(for: session) {
-            _ = try? runner.run(cmd)   // best-effort; failures are logged by ProcessRunner caller if desired
+        let runner = self.runner
+        let bundleId = self.cmuxBundleId
+        Task.detached {
+            for cmd in JumpPlan.commands(for: session) { _ = try? runner.run(cmd) }
+            await MainActor.run { Jumper.activateCmux(bundleId: bundleId) }
         }
-        activateCmux()
     }
 
-    private func activateCmux() {
-        if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: cmuxBundleId) {
+    static func activateCmux(bundleId: String) {
+        if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleId) {
             let config = NSWorkspace.OpenConfiguration()
             config.activates = true
             NSWorkspace.shared.openApplication(at: url, configuration: config, completionHandler: nil)

@@ -3,12 +3,17 @@ import IslandCore
 
 @main
 struct IslandApp: App {
-    @StateObject private var model = AppModel()
+    @StateObject private var model: AppModel
+
+    init() {
+        let m = AppModel()
+        _model = StateObject(wrappedValue: m)
+        MainActor.assumeIsolated { m.start() }
+    }
 
     var body: some Scene {
         MenuBarExtra {
             MenuBarView().environmentObject(model)
-                .onAppear { model.start() }
         } label: {
             Image(systemName: model.icon.symbolName)
         }

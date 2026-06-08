@@ -4,6 +4,10 @@ import IslandCore
 import Darwin
 #endif
 
+// @unchecked Sendable: `running`/`listenFD` are written by start()/stop() on the main
+// actor and read by the single detached accept thread. For this single-instance,
+// single-lifecycle menu-bar app stop() is only called at teardown, so the access
+// pattern is one-writer-then-one-reader; no lock is warranted.
 /// AF_UNIX line-delimited JSON server. Accepts connections on a background thread,
 /// decodes each line into a HookMessage, and delivers it on the main queue.
 final class SocketServer: @unchecked Sendable {
@@ -28,6 +32,9 @@ final class SocketServer: @unchecked Sendable {
         var addr = sockaddr_un()
         addr.sun_family = sa_family_t(AF_UNIX)
         let bytes = Array(path.utf8)
+        guard bytes.count < MemoryLayout.size(ofValue: addr.sun_path) else {
+            close(listenFD); listenFD = -1; throw POSIXError(.ENAMETOOLONG)
+        }
         withUnsafeMutablePointer(to: &addr.sun_path) { ptr in
             ptr.withMemoryRebound(to: CChar.self, capacity: bytes.count + 1) { dst in
                 for (i, b) in bytes.enumerated() { dst[i] = CChar(bitPattern: b) }
@@ -38,8 +45,8 @@ final class SocketServer: @unchecked Sendable {
         let bound = withUnsafePointer(to: &addr) {
             $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { bind(listenFD, $0, len) }
         }
-        guard bound == 0 else { close(listenFD); throw POSIXError(.EADDRINUSE) }
-        guard listen(listenFD, 16) == 0 else { close(listenFD); throw POSIXError(.EADDRINUSE) }
+        guard bound == 0 else { close(listenFD); listenFD = -1; throw POSIXError(.EADDRINUSE) }
+        guard listen(listenFD, 16) == 0 else { close(listenFD); listenFD = -1; throw POSIXError(.EADDRINUSE) }
 
         running = true
         Thread.detachNewThread { [weak self] in self?.acceptLoop() }
@@ -65,7 +72,7 @@ final class SocketServer: @unchecked Sendable {
         let callback = onMessage
         for line in buffer.split(separator: 0x0A) where !line.isEmpty {
             guard let msg = try? JSONDecoder().decode(HookMessage.self, from: Data(line)) else { continue }
-            Task { @MainActor in callback(msg) }
+            callback(msg)
         }
     }
 

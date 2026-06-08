@@ -14,6 +14,8 @@ final class AppModel: ObservableObject {
     private var server: SocketServer?
     private var started = false
 
+    deinit { server?.stop() }
+
     func start() {
         guard !started else { return }
         started = true
