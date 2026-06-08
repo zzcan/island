@@ -11,3 +11,14 @@ public enum IconState: String, Equatable, Sendable {
         return .idle
     }
 }
+
+extension IconState {
+    /// SF Symbol name for the menu bar.
+    public var symbolName: String {
+        switch self {
+        case .idle: return "circle"
+        case .busy: return "circle.dotted"
+        case .attention: return "bell.badge.fill"
+        }
+    }
+}
