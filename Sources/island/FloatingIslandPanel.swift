@@ -31,11 +31,12 @@ final class FloatingIslandPanel {
         panel.isFloatingPanel = true
         panel.hidesOnDeactivate = false
         panel.becomesKeyOnlyIfNeeded = true
-        // Set the level AFTER isFloatingPanel — toggling isFloatingPanel resets the
-        // level back to .floating, which both sits BELOW the menu bar and lets the
-        // OS clamp the frame. CGShieldingWindowLevel composites over the menu bar /
-        // notch row so the capsule overlays the notch instead of hiding beneath it.
-        panel.level = NSWindow.Level(rawValue: Int(CGShieldingWindowLevel()))
+        // Sit BELOW the menu bar / notch in z-order so the notch (and menu bar)
+        // composite ON TOP of the capsule — the capsule tucks behind the notch and
+        // only its wider "ears" peek out to the sides. .floating is above normal app
+        // windows but under the menu bar. (The NotchPanel.constrainFrameRect override
+        // is what still lets us place it up in the top strip at this low level.)
+        panel.level = .floating
         hosting.frame = panel.contentLayoutRect
         hosting.autoresizingMask = [.width, .height]
         panel.contentView = hosting
@@ -55,15 +56,12 @@ final class FloatingIslandPanel {
         guard let screen = primary ?? NSScreen.main ?? NSScreen.screens.first else { return }
         let f = screen.frame
         let size = panel.frame.size
-        // IslandView pads its content 6pt from the panel's top edge.
+        // IslandView pads its content 6pt from the panel's top edge; compensate so
+        // the capsule's top is flush with the physical screen top — same position as
+        // the notch. The panel sits BELOW the notch in z-order (see init), so the
+        // notch shows on top and the capsule's ears peek out around it.
         let contentTopInset: CGFloat = 6
-        // The capsule is wider than the notch, so don't cover the notch — hang it
-        // just BELOW it. Drop by the notch height (safeAreaInsets.top); on screens
-        // without a notch, drop below the menu bar instead.
-        let topInset = screen.safeAreaInsets.top > 0
-            ? screen.safeAreaInsets.top
-            : f.maxY - screen.visibleFrame.maxY
         panel.setFrameOrigin(NSPoint(x: f.midX - size.width / 2,
-                                     y: f.maxY - topInset - size.height + contentTopInset))
+                                     y: f.maxY - size.height + contentTopInset))
     }
 }
