@@ -17,9 +17,11 @@ final class AppModel: ObservableObject {
     private var started = false
     private var pruneTimer: Timer?
 
-    /// A session whose lastActivity is older than this is treated as residual (its
-    /// process likely died without firing SessionEnd) and pruned. Self-healing: if
-    /// the session is actually alive, its next hook event recreates the row.
+    /// A done/idle session whose lastActivity is older than this is treated as
+    /// residual (its process likely died without firing SessionEnd) and pruned.
+    /// Active sessions (working / needsInput) are kept regardless of age — see
+    /// SessionStore.prune. Self-healing: a pruned session that is actually alive
+    /// reappears on its next hook event.
     private static let staleInterval: TimeInterval = 30 * 60
     /// How often the prune sweep runs.
     private static let pruneTick: TimeInterval = 60

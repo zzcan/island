@@ -75,6 +75,24 @@ import Foundation
         #expect(store.sessions.isEmpty)
     }
 
+    @Test func pruneKeepsStaleActiveSessions() {
+        let store = SessionStore()
+        _ = store.apply(msg(.userPromptSubmit, "working"), now: t0)        // .working
+        _ = store.apply(msg(.notification, "waiting", message: "?"), now: t0) // .needsInput
+        // Both are far older than the interval, but active states are preserved.
+        store.prune(olderThan: 100, now: t0.addingTimeInterval(10_000))
+        #expect(store.sessions["working"]?.status == .working)
+        #expect(store.sessions["waiting"]?.status == .needsInput)
+        #expect(store.sessions.count == 2)
+    }
+
+    @Test func pruneDropsStaleIdleSessions() {
+        let store = SessionStore()
+        _ = store.apply(msg(.sessionStart, "idle"), now: t0)              // .idle
+        store.prune(olderThan: 100, now: t0.addingTimeInterval(200))
+        #expect(store.sessions.isEmpty)
+    }
+
     @Test func clearAll() {
         let store = SessionStore()
         _ = store.apply(msg(.userPromptSubmit), now: t0)

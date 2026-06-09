@@ -57,8 +57,17 @@ public final class SessionStore {
         return request
     }
 
+    /// Drops residual sessions whose lastActivity is older than `interval`. Active
+    /// sessions (working, or waiting on the user) are kept regardless of age — only
+    /// terminal/idle sessions (done, idle) are swept, so a long-running task or a
+    /// session genuinely awaiting input is never removed out from under the user.
     public func prune(olderThan interval: TimeInterval, now: Date) {
-        sessions = sessions.filter { now.timeIntervalSince($0.value.lastActivity) <= interval }
+        sessions = sessions.filter { _, s in
+            switch s.status {
+            case .working, .needsInput: return true
+            case .done, .idle: return now.timeIntervalSince(s.lastActivity) <= interval
+            }
+        }
     }
 
     public func clearAll() {
