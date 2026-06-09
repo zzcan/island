@@ -444,8 +444,8 @@ private struct EqualizerBars: View {
 private struct EqualizerAvatar: View {
     let status: SessionStatus
     var body: some View {
-        EqualizerBars(status: status, barCount: 5, barWidth: 3, maxHeight: 15, spacing: 2)
-            .frame(width: 26, height: 26)
-            .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 6))
+        EqualizerBars(status: status, barCount: 5, barWidth: 2.5, maxHeight: 12, spacing: 1.5)
+            .frame(width: 20, height: 20)
+            .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 5))
     }
 }
