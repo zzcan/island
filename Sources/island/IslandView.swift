@@ -82,7 +82,7 @@ struct IslandView: View {
         HStack(spacing: 7) {
             // Left: per-session equalizer glyphs (capped), like Vibe Island's notch bar.
             ForEach(model.display.rows.prefix(5)) { row in
-                EqualizerBars(status: row.status)
+                EqualizerBars(status: row.status, barCount: 4, barWidth: 2, maxHeight: 11, spacing: 1.5)
             }
             if model.display.pillCount > 5 {
                 Text("+\(model.display.pillCount - 5)")
