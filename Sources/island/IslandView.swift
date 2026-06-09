@@ -76,7 +76,7 @@ struct IslandView: View {
                 .foregroundStyle(.white)
         }
         .padding(.horizontal, 14)
-        .frame(width: 260, height: 40)
+        .frame(width: 240, height: 34)
     }
 
     // MARK: - Expanded panel
