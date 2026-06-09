@@ -46,25 +46,27 @@ struct IslandView: View {
     // MARK: - Collapsed capsule
 
     private var collapsedCapsule: some View {
-        HStack(spacing: 5) {
-            ForEach(model.display.rows.prefix(4)) { row in
-                StatusDot(status: row.status)
+        HStack(spacing: 7) {
+            // Left: per-session equalizer glyphs (capped), like Vibe Island's notch bar.
+            ForEach(model.display.rows.prefix(5)) { row in
+                EqualizerGlyph(status: row.status)
             }
-            if model.display.pillCount > 4 {
-                Text("+\(model.display.pillCount - 4)")
+            if model.display.pillCount > 5 {
+                Text("+\(model.display.pillCount - 5)")
                     .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.7))
+                    .foregroundStyle(.white.opacity(0.6))
             }
+            Spacer(minLength: 16)
+            // Right: session count.
             Text("\(model.display.pillCount)")
-                .font(.system(size: 12, weight: .semibold).monospacedDigit())
+                .font(.system(size: 13, weight: .bold).monospacedDigit())
                 .foregroundStyle(.white)
-                .padding(.leading, 1)
         }
-        .padding(.horizontal, 11)
-        .frame(height: 26)
-        .background(Color.black, in: Capsule())
-        .overlay(Capsule().strokeBorder(.white.opacity(0.08), lineWidth: 0.5))
-        .shadow(color: .black.opacity(0.35), radius: 6, y: 2)
+        .padding(.horizontal, 16)
+        .frame(width: 360, height: 30)
+        .background(Color.black, in: RoundedRectangle(cornerRadius: 15, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 15, style: .continuous).strokeBorder(.white.opacity(0.06), lineWidth: 0.5))
+        .shadow(color: .black.opacity(0.4), radius: 7, y: 2)
     }
 
     // MARK: - Expanded panel
@@ -278,32 +280,41 @@ private struct IdenticonView: View {
 
 // MARK: - Collapsed status dot
 
-/// One dot per active session in the collapsed capsule. `working` gently pulses;
-/// `needsInput` gets a colored glow so urgent sessions catch the eye.
-private struct StatusDot: View {
+/// One small equalizer glyph per active session in the collapsed bar — mirrors
+/// Vibe Island's notch bar. `working` animates the bars; color encodes status.
+private struct EqualizerGlyph: View {
     let status: SessionStatus
-    @State private var pulsing = false
+    @State private var animating = false
 
     private var color: Color {
         switch status {
-        case .done: return .green
+        case .done, .working: return .green
         case .needsInput: return .yellow
-        case .working: return .blue
         case .idle: return .gray
         }
     }
 
+    private let base: [CGFloat] = [6, 12, 8, 13]
+
     var body: some View {
-        Circle()
-            .fill(color)
-            .frame(width: status == .needsInput ? 8 : 7, height: status == .needsInput ? 8 : 7)
-            .scaleEffect(status == .working && pulsing ? 1.0 : (status == .working ? 0.65 : 1.0))
-            .shadow(color: status == .needsInput ? color.opacity(0.9) : .clear, radius: 3)
-            .onAppear {
-                guard status == .working else { return }
-                withAnimation(.easeInOut(duration: 0.7).repeatForever(autoreverses: true)) {
-                    pulsing = true
-                }
+        HStack(spacing: 2) {
+            ForEach(0..<4, id: \.self) { i in
+                Capsule()
+                    .fill(color)
+                    .frame(width: 2.5, height: height(i))
             }
+        }
+        .frame(height: 14, alignment: .center)
+        .onAppear {
+            guard status == .working else { return }
+            withAnimation(.easeInOut(duration: 0.5).repeatForever(autoreverses: true)) {
+                animating = true
+            }
+        }
+    }
+
+    private func height(_ i: Int) -> CGFloat {
+        guard status == .working else { return base[i] }
+        return animating ? base[(i + 2) % 4] : base[i]
     }
 }

@@ -11,7 +11,7 @@ final class FloatingIslandPanel {
     init(appModel: AppModel) {
         let hosting = NSHostingView(rootView: IslandView().environmentObject(appModel))
         // Fixed generous canvas; the island draws top-center, the rest is transparent.
-        panel = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 360, height: 360),
+        panel = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 500, height: 360),
                         styleMask: [.borderless, .nonactivatingPanel],
                         backing: .buffered, defer: false)
         panel.level = .statusBar
