@@ -35,6 +35,9 @@ public final class SessionStore {
         // permission_mode isn't on every event (e.g. SessionStart/Notification omit
         // it); keep the last known value so the badge doesn't blink to "unknown".
         if let pm = m.permissionMode { s.permissionMode = pm }
+        // model is only resolved once the transcript has an assistant message; keep
+        // the last known id so it survives events before/without one.
+        if let md = m.model { s.model = md }
         s.lastActivity = now
 
         var request: NotificationRequest? = nil

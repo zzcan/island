@@ -94,4 +94,29 @@ import Foundation
         let result = TranscriptParser.latestAssistantText(jsonl: "")
         #expect(result == nil)
     }
+
+    @Test func latestAssistantModelReturnsMostRecent() {
+        let jsonl = """
+        {"type":"assistant","message":{"role":"assistant","model":"claude-sonnet-4-6","content":[{"type":"text","text":"hi"}]}}
+        {"type":"user","message":{"role":"user","content":[{"type":"text","text":"switch"}]}}
+        {"type":"assistant","message":{"role":"assistant","model":"claude-opus-4-8","content":[{"type":"text","text":"ok"}]}}
+        """
+        #expect(TranscriptParser.latestAssistantModel(jsonl: jsonl) == "claude-opus-4-8")
+    }
+
+    @Test func latestAssistantModelFromToolUseOnlyTurn() {
+        // The newest assistant turn has only a tool_use block but still carries a model.
+        let jsonl = """
+        {"type":"assistant","message":{"role":"assistant","model":"claude-sonnet-4-6","content":[{"type":"text","text":"hi"}]}}
+        {"type":"assistant","message":{"role":"assistant","model":"claude-opus-4-8","content":[{"type":"tool_use","id":"t1","name":"Bash","input":{"command":"ls"}}]}}
+        """
+        let latest = TranscriptParser.latest(jsonl: jsonl)
+        #expect(latest.model == "claude-opus-4-8")   // model updates from the tool-use turn
+        #expect(latest.text == "hi")                 // text stays at the last text block
+    }
+
+    @Test func latestAssistantModelNilWhenAbsent() {
+        let jsonl = #"{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"no model field"}]}}"#
+        #expect(TranscriptParser.latestAssistantModel(jsonl: jsonl) == nil)
+    }
 }

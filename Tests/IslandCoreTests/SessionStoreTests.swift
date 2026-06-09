@@ -7,10 +7,12 @@ import Foundation
 
     private func msg(_ event: IslandEvent, _ sid: String = "s1",
                      cwd: String? = "/Users/me/proj", message: String? = nil,
-                     cmux: CmuxContext? = nil, permissionMode: String? = nil) -> HookMessage {
+                     cmux: CmuxContext? = nil, permissionMode: String? = nil,
+                     model: String? = nil) -> HookMessage {
         HookMessage(event: event, sessionId: sid, cwd: cwd,
                     title: cwd.map { ($0 as NSString).lastPathComponent },
-                    message: message, cmux: cmux, tmux: nil, permissionMode: permissionMode)
+                    message: message, cmux: cmux, tmux: nil,
+                    permissionMode: permissionMode, model: model)
     }
 
     @Test func sessionStartRegistersIdle() {
@@ -64,6 +66,18 @@ import Foundation
         // ...and a new value overrides.
         _ = store.apply(msg(.userPromptSubmit, permissionMode: "plan"), now: t0)
         #expect(store.sessions["s1"]?.permissionMode == "plan")
+    }
+
+    @Test func modelStoredAndKeptAcrossEventsWithout() {
+        let store = SessionStore()
+        _ = store.apply(msg(.stop, model: "claude-opus-4-8"), now: t0)
+        #expect(store.sessions["s1"]?.model == "claude-opus-4-8")
+        // An event without a resolved model must not wipe it.
+        _ = store.apply(msg(.notification, message: "?"), now: t0)
+        #expect(store.sessions["s1"]?.model == "claude-opus-4-8")
+        // A /model switch surfaces on the next transcript read.
+        _ = store.apply(msg(.postToolUse, model: "claude-sonnet-4-6"), now: t0)
+        #expect(store.sessions["s1"]?.model == "claude-sonnet-4-6")
     }
 
     @Test func cmuxContextStoredOnLatestMessage() {

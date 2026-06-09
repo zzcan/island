@@ -189,7 +189,7 @@ struct IslandView: View {
                     if let mode = PermissionMode.from(row.permissionMode) {
                         badge(mode.label, tint: permissionTint(mode.tint))
                     }
-                    badge("Claude")
+                    badge(row.model ?? "Claude")
                     badge(row.terminal)
                     Text(elapsedString(from: row.lastActivity, to: now))
                         .font(.caption2)

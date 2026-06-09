@@ -17,16 +17,17 @@ public struct Session: Equatable, Identifiable, Sendable {
     public var lastAssistant: String?
     public var tasks: [TaskItem]
     public var permissionMode: String?
+    public var model: String?
 
     public init(id: String, title: String, cwd: String?, status: SessionStatus,
                 cmux: CmuxContext?, tmux: TmuxContext?, lastActivity: Date,
                 lastPrompt: String? = nil, lastAction: String? = nil,
                 lastAssistant: String? = nil, tasks: [TaskItem] = [],
-                permissionMode: String? = nil) {
+                permissionMode: String? = nil, model: String? = nil) {
         self.id = id; self.title = title; self.cwd = cwd; self.status = status
         self.cmux = cmux; self.tmux = tmux; self.lastActivity = lastActivity
         self.lastPrompt = lastPrompt; self.lastAction = lastAction
         self.lastAssistant = lastAssistant; self.tasks = tasks
-        self.permissionMode = permissionMode
+        self.permissionMode = permissionMode; self.model = model
     }
 }

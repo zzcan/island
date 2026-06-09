@@ -35,12 +35,12 @@ func loadTasks(sessionId: String, home: String) -> [TaskItem]? {
     return items
 }
 
-/// Read the last assistant text from a JSONL transcript file.
+/// Read the last assistant text + model id from a JSONL transcript file.
 /// Reads the last 128 KB to avoid loading giant files; drops the first partial line.
-func loadAssistantText(path: String) -> String? {
-    guard FileManager.default.fileExists(atPath: path) else { return nil }
+func loadTranscript(path: String) -> (text: String?, model: String?) {
+    guard FileManager.default.fileExists(atPath: path) else { return (nil, nil) }
     let url = URL(fileURLWithPath: path)
-    guard let handle = try? FileHandle(forReadingFrom: url) else { return nil }
+    guard let handle = try? FileHandle(forReadingFrom: url) else { return (nil, nil) }
     defer { try? handle.close() }
 
     let tailSize: UInt64 = 128 * 1024
@@ -50,13 +50,13 @@ func loadAssistantText(path: String) -> String? {
     if fileSize <= tailSize {
         // Small file — read all
         try? handle.seek(toOffset: 0)
-        guard let data = try? handle.readToEnd(), let s = String(data: data, encoding: .utf8) else { return nil }
+        guard let data = try? handle.readToEnd(), let s = String(data: data, encoding: .utf8) else { return (nil, nil) }
         jsonl = s
     } else {
         // Large file — tail last 128 KB, drop first partial line
         let offset = fileSize - tailSize
         try? handle.seek(toOffset: offset)
-        guard let data = try? handle.readToEnd(), let s = String(data: data, encoding: .utf8) else { return nil }
+        guard let data = try? handle.readToEnd(), let s = String(data: data, encoding: .utf8) else { return (nil, nil) }
         // Drop everything up to (and including) the first newline, which may be partial
         if let newlineRange = s.range(of: "\n") {
             jsonl = String(s[s.index(after: newlineRange.lowerBound)...])
@@ -65,7 +65,7 @@ func loadAssistantText(path: String) -> String? {
         }
     }
 
-    return TranscriptParser.latestAssistantText(jsonl: jsonl)
+    return TranscriptParser.latest(jsonl: jsonl)
 }
 
 let env = ProcessInfo.processInfo.environment
@@ -79,11 +79,13 @@ let home = env["HOME"] ?? NSHomeDirectory()
 // Load tasks if session_id is available
 let tasks: [TaskItem]? = hookInput?.session_id.flatMap { loadTasks(sessionId: $0, home: home) }
 
-// Load assistant text if transcript_path is available
-let assistantText: String? = hookInput?.transcript_path.flatMap { loadAssistantText(path: $0) }
+// Load assistant text + model id if transcript_path is available
+let transcript: (text: String?, model: String?) =
+    hookInput?.transcript_path.map { loadTranscript(path: $0) } ?? (text: nil, model: nil)
 
 if let msg = HookMessage.build(stdin: stdin, env: env, tmux: tmux,
-                               assistantText: assistantText, tasks: tasks),
+                               assistantText: transcript.text, tasks: tasks,
+                               model: transcript.model),
    let line = try? JSONEncoder().encode(msg) {
     var payload = line
     payload.append(0x0A) // newline-delimited
