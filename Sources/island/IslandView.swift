@@ -30,7 +30,7 @@ struct IslandView: View {
 
     private var island: some View {
         // Uniform corners both states; radius animates via `morph`.
-        let shape = RoundedRectangle(cornerRadius: expanded ? 24 : 16, style: .continuous)
+        let shape = RoundedRectangle(cornerRadius: expanded ? 24 : 8, style: .continuous)
         return Group {
             if expanded {
                 expandedPanel
