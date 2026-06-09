@@ -89,8 +89,10 @@ struct IslandView: View {
                 .padding(.vertical, 4)
             }
             .frame(width: 460)
-            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 22))
+            .background(Color.black, in: RoundedRectangle(cornerRadius: 22))
+            .overlay(RoundedRectangle(cornerRadius: 22).strokeBorder(.white.opacity(0.08), lineWidth: 0.5))
             .foregroundStyle(.white)
+            .shadow(color: .black.opacity(0.45), radius: 12, y: 4)
         }
     }
 
