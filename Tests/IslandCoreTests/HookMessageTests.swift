@@ -79,4 +79,30 @@ import Foundation
         let msg = HookMessage.build(stdin: Data(json.utf8), env: [:], tmux: nil)
         #expect(msg?.prompt == "hello world")
     }
+
+    @Test func buildComposesAction() {
+        let json = #"{"session_id":"s1","hook_event_name":"PostToolUse","tool_name":"Read","tool_input":{"file_path":"/tmp/a/b.ts"}}"#
+        let msg = HookMessage.build(stdin: Data(json.utf8), env: [:], tmux: nil)
+        #expect(msg?.action == "Read a/b.ts")
+    }
+
+    @Test func buildComposesActionForBash() {
+        let json = #"{"session_id":"s1","hook_event_name":"PostToolUse","tool_name":"Bash","tool_input":{"command":"npm test"}}"#
+        let msg = HookMessage.build(stdin: Data(json.utf8), env: [:], tmux: nil)
+        #expect(msg?.action == "Bash npm test")
+    }
+
+    @Test func shortenArgTruncatesNonPath() {
+        let longStr = String(repeating: "x", count: 50)
+        let result = HookMessage.shortenArg(longStr)
+        #expect(result.count == 40)
+    }
+
+    @Test func shortenArgLastTwoComponents() {
+        #expect(HookMessage.shortenArg("/tmp/a/b.ts") == "a/b.ts")
+    }
+
+    @Test func postToolUseEventRecognized() {
+        #expect(IslandEvent(claudeName: "PostToolUse") == .postToolUse)
+    }
 }

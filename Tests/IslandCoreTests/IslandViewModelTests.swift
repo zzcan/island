@@ -32,4 +32,13 @@ import Foundation
         let d = IslandDisplay.from([session("a", .needsInput, 1, title: "proj")])
         #expect(d.rows.first == IslandRow(id: "a", title: "proj", status: .needsInput, lastActivity: Date(timeIntervalSince1970: 1)))
     }
+
+    @Test func rowsMapscwdAndAction() {
+        var s = Session(id: "s1", title: "proj", cwd: "/Users/me/proj", status: .working,
+                        cmux: nil, tmux: nil, lastActivity: Date(timeIntervalSince1970: 1),
+                        lastAction: "Read src/main.ts")
+        let d = IslandDisplay.from([s])
+        #expect(d.rows.first?.cwd == "/Users/me/proj")
+        #expect(d.rows.first?.action == "Read src/main.ts")
+    }
 }

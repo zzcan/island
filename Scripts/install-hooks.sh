@@ -13,7 +13,7 @@ python3 - "$SETTINGS" "$HOOK" <<'PY'
 import json, sys, os, shutil
 
 settings_path, hook = sys.argv[1], sys.argv[2]
-events = ["SessionStart", "UserPromptSubmit", "Notification", "Stop", "SessionEnd"]
+events = ["SessionStart", "UserPromptSubmit", "Notification", "Stop", "SessionEnd", "PostToolUse"]
 
 data = {}
 if os.path.exists(settings_path):

@@ -7,10 +7,13 @@ public struct IslandRow: Equatable, Identifiable, Sendable {
     public let lastActivity: Date
     public let prompt: String?
     public let terminal: String
+    public let cwd: String?
+    public let action: String?
     public init(id: String, title: String, status: SessionStatus, lastActivity: Date,
-                prompt: String? = nil, terminal: String = "cmux") {
+                prompt: String? = nil, terminal: String = "cmux",
+                cwd: String? = nil, action: String? = nil) {
         self.id = id; self.title = title; self.status = status; self.lastActivity = lastActivity
-        self.prompt = prompt; self.terminal = terminal
+        self.prompt = prompt; self.terminal = terminal; self.cwd = cwd; self.action = action
     }
 }
 
@@ -31,6 +34,7 @@ public struct IslandDisplay: Equatable, Sendable {
             pillSymbol: IconState.aggregate(sorted).symbolName,
             pillCount: sorted.count,
             rows: sorted.map { IslandRow(id: $0.id, title: $0.title, status: $0.status, lastActivity: $0.lastActivity,
-                                         prompt: $0.lastPrompt, terminal: $0.tmux != nil ? "tmux" : "cmux") })
+                                         prompt: $0.lastPrompt, terminal: $0.tmux != nil ? "tmux" : "cmux",
+                                         cwd: $0.cwd, action: $0.lastAction) })
     }
 }

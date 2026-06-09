@@ -29,6 +29,7 @@ public final class SessionStore {
         if let cmux = m.cmux { s.cmux = cmux }
         if let tmux = m.tmux { s.tmux = tmux }
         if let p = m.prompt { s.lastPrompt = p }
+        if let a = m.action { s.lastAction = a }
         s.lastActivity = now
 
         var request: NotificationRequest? = nil
@@ -44,6 +45,8 @@ public final class SessionStore {
         case .stop:
             s.status = .done
             request = NotificationRequest(sessionId: s.id, title: s.title, body: "Done")
+        case .postToolUse:
+            s.status = .working
         case .sessionEnd:
             break // handled above
         }

@@ -13,12 +13,13 @@ public struct Session: Equatable, Identifiable, Sendable {
     public var tmux: TmuxContext?
     public var lastActivity: Date
     public var lastPrompt: String?
+    public var lastAction: String?
 
     public init(id: String, title: String, cwd: String?, status: SessionStatus,
                 cmux: CmuxContext?, tmux: TmuxContext?, lastActivity: Date,
-                lastPrompt: String? = nil) {
+                lastPrompt: String? = nil, lastAction: String? = nil) {
         self.id = id; self.title = title; self.cwd = cwd; self.status = status
         self.cmux = cmux; self.tmux = tmux; self.lastActivity = lastActivity
-        self.lastPrompt = lastPrompt
+        self.lastPrompt = lastPrompt; self.lastAction = lastAction
     }
 }

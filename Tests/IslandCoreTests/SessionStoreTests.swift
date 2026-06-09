@@ -89,4 +89,15 @@ import Foundation
         _ = store.apply(m, now: t0)
         #expect(store.sessions["s1"]?.lastPrompt == "do X")
     }
+
+    @Test func postToolUseSetsWorkingAndActionNoNotification() {
+        let store = SessionStore()
+        _ = store.apply(msg(.sessionStart), now: t0)
+        let m = HookMessage(event: .postToolUse, sessionId: "s1", cwd: nil, title: nil,
+                            message: nil, cmux: nil, tmux: nil, action: "Read x")
+        let note = store.apply(m, now: t0)
+        #expect(store.sessions["s1"]?.status == .working)
+        #expect(store.sessions["s1"]?.lastAction == "Read x")
+        #expect(note == nil)
+    }
 }

@@ -10,12 +10,14 @@ public struct HookMessage: Codable, Equatable, Sendable {
     public let cmux: CmuxContext?
     public let tmux: TmuxContext?
     public let prompt: String?
+    public let action: String?
 
     public init(event: IslandEvent, sessionId: String, cwd: String?, title: String?,
                 message: String?, cmux: CmuxContext?, tmux: TmuxContext?,
-                prompt: String? = nil) {
+                prompt: String? = nil, action: String? = nil) {
         self.event = event; self.sessionId = sessionId; self.cwd = cwd; self.title = title
         self.message = message; self.cmux = cmux; self.tmux = tmux; self.prompt = prompt
+        self.action = action
     }
 
     /// Pure builder. `tmux` is passed in (the caller resolves it via a side-effecting CLI call)
@@ -32,7 +34,36 @@ public struct HookMessage: Codable, Equatable, Sendable {
 
         let title = input.cwd.map { ($0 as NSString).lastPathComponent }
 
+        var action: String? = nil
+        if event == .postToolUse, let tool = input.tool_name {
+            let arg = input.tool_input?.file_path ?? input.tool_input?.command
+                      ?? input.tool_input?.pattern ?? input.tool_input?.path
+            if let arg, !arg.isEmpty {
+                action = "\(tool) \(HookMessage.shortenArg(arg))"
+            } else {
+                action = tool
+            }
+        }
+
         return HookMessage(event: event, sessionId: sid, cwd: input.cwd, title: title,
-                           message: input.message, cmux: cmux, tmux: tmux, prompt: input.prompt)
+                           message: input.message, cmux: cmux, tmux: tmux, prompt: input.prompt,
+                           action: action)
+    }
+
+    /// If the string contains "/", returns the last 2 path components joined by "/".
+    /// Otherwise returns the string truncated to 40 characters.
+    public static func shortenArg(_ s: String) -> String {
+        if s.contains("/") {
+            let components = s.split(separator: "/", omittingEmptySubsequences: true).map(String.init)
+            if components.count >= 2 {
+                return "\(components[components.count - 2])/\(components[components.count - 1])"
+            } else if let last = components.last {
+                return last
+            }
+            return s
+        } else {
+            if s.count <= 40 { return s }
+            return String(s.prefix(40))
+        }
     }
 }
