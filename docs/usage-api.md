@@ -34,8 +34,17 @@ The OAuth access token lives in the **macOS login keychain**, not in
   `.subscriptionType` (e.g. `max`), `.rateLimitTier`, `.scopes`.
 
 Claude Code keeps this token fresh while it runs. The island app just re-reads the
-keychain on each poll and uses whatever token is stored; on a 401 (expired token,
-Claude Code not running to refresh it) the fetch fails and the bar keeps its last value.
+keychain on each poll and uses whatever token is stored. It checks `claudeAiOauth.expiresAt`
+and, if the token is already expired, **skips the request** and keeps the last value.
+
+**No self-refresh (deliberate).** The island app never calls the refresh endpoint or
+writes the keychain. Anthropic's OAuth refresh **rotates** the refresh token (the
+`POST https://platform.claude.com/v1/oauth/token` response returns a new one, and Claude
+Code persists it), so if island refreshed it would invalidate Claude Code's stored refresh
+token and could log the user out. Instead, when the token is expired island shows the last
+value and waits for Claude Code to refresh the keychain on its next run; the following poll
+picks up the new token automatically. (Refresh facts, if ever needed: endpoint above,
+`grant_type=refresh_token`, `client_id=9d1c250a-e61b-44d9-88ed-5944d1962f5e`.)
 
 **Keychain prompt:** the island app is signed separately from Claude Code, so the first
 `SecItemCopyMatching` read triggers a macOS access prompt. "Always Allow" silences it.

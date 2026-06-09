@@ -309,23 +309,8 @@ struct IslandView: View {
 
     @ViewBuilder
     private func statusGlyph(_ status: SessionStatus) -> some View {
-        switch status {
-        case .done:
-            Image(systemName: "checkmark.circle.fill")
-                .font(.system(size: 11))
-                .foregroundStyle(.green)
-        case .needsInput:
-            Image(systemName: "exclamationmark.triangle.fill")
-                .font(.system(size: 11))
-                .foregroundStyle(.yellow)
-        case .working:
-            ProgressView()
-                .controlSize(.mini)
-        case .idle:
-            Image(systemName: "circle.fill")
-                .font(.system(size: 11))
-                .foregroundStyle(.gray)
-        }
+        PixelGlyphView(sprite: .forStatus(status), height: 14)
+            .frame(width: 34, alignment: .leading)
     }
 
     // MARK: - Elapsed time
