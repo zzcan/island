@@ -4,11 +4,13 @@ import IslandCore
 
 struct IslandView: View {
     let hitRegion: IslandHitRegion
+    let drag: IslandDragProxy
     @EnvironmentObject var model: AppModel
     @State private var hovering = false
     @State private var autoExpand = false
     @State private var rowsIn = false   // drives the staggered row cascade
     @State private var now = Date()     // refreshed by a timer for elapsed labels
+    @State private var hoveredRow: String?  // id of the row the cursor is over
 
     private var expanded: Bool { hovering || autoExpand }
 
@@ -84,6 +86,15 @@ struct IslandView: View {
                 .onAppear { hitRegion.rect = geo.frame(in: .global) }
                 .onChange(of: geo.frame(in: .global)) { _, f in hitRegion.rect = f }
         })
+        // Press-and-drag horizontally to reposition the island (e.g. to clear the
+        // menu-bar status icons). Vertical movement is ignored — it stays flush at the
+        // top. minimumDistance lets row taps (jump) still register as clicks. Global
+        // coordinate space keeps the translation stable as the panel moves under it.
+        .gesture(
+            DragGesture(minimumDistance: 6, coordinateSpace: .global)
+                .onChanged { drag.onChanged?($0.translation.width) }
+                .onEnded { _ in drag.onEnded?() }
+        )
     }
 
     // MARK: - Collapsed capsule
@@ -115,6 +126,13 @@ struct IslandView: View {
                 ForEach(Array(model.display.rows.enumerated()), id: \.element.id) { idx, row in
                     Button { model.jump(sessionId: row.id) } label: { rowView(row: row, now: now) }
                         .buttonStyle(.plain)
+                        // Hover highlight: subtle background while the cursor is over the row.
+                        .background(hoveredRow == row.id ? Color.white.opacity(0.07) : Color.clear)
+                        .animation(.easeOut(duration: 0.12), value: hoveredRow)
+                        .onHover { inside in
+                            if inside { hoveredRow = row.id }
+                            else if hoveredRow == row.id { hoveredRow = nil }
+                        }
                         // Staggered cascade: each row fades + slides in slightly after
                         // the previous one, once the box has begun expanding.
                         .opacity(rowsIn ? 1 : 0)
@@ -129,7 +147,7 @@ struct IslandView: View {
             }
             .padding(.vertical, 4)
         }
-        .frame(width: 460)
+        .frame(width: 560)
         // Refresh elapsed labels without rebuilding the row/avatar subtree
         // (which would interrupt the equalizer's repeating animation).
         .onReceive(Timer.publish(every: 30, on: .main, in: .common).autoconnect()) { now = $0 }
@@ -154,7 +172,7 @@ struct IslandView: View {
     private func rowView(row: IslandRow, now: Date) -> some View {
         HStack(alignment: .top, spacing: 10) {
             EqualizerAvatar(status: row.status)
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: 5) {
                 // Line 1: title · cwd + badges + elapsed
                 HStack(spacing: 6) {
                     Text(row.title)
@@ -178,15 +196,12 @@ struct IslandView: View {
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
-                // Line 2: status glyph + prompt
-                HStack(spacing: 6) {
-                    statusGlyph(row.status)
-                    Text("你：" + (row.prompt ?? "—"))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
-                }
+                // Line 2: prompt
+                Text("你：" + (row.prompt ?? "—"))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
                 // Line 3: assistant's latest message (if present)
                 if let assistant = row.assistant {
                     Text(assistant)
@@ -235,7 +250,7 @@ struct IslandView: View {
                 }
             }
         }
-        .padding(.vertical, 7)
+        .padding(.vertical, 14)
         .padding(.horizontal, 12)
         .contentShape(Rectangle())
     }
@@ -279,14 +294,6 @@ struct IslandView: View {
             .padding(.vertical, 2)
             .background(tint, in: Capsule())
             .foregroundStyle(.white.opacity(0.85))
-    }
-
-    // MARK: - Status glyph
-
-    @ViewBuilder
-    private func statusGlyph(_ status: SessionStatus) -> some View {
-        PixelGlyphView(sprite: .forStatus(status), height: 14)
-            .frame(width: 34, alignment: .leading)
     }
 
     // MARK: - Elapsed time
