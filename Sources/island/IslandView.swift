@@ -44,7 +44,7 @@ struct IslandView: View {
 
     private var island: some View {
         // Uniform corners both states; radius animates with the geometry spring.
-        let shape = RoundedRectangle(cornerRadius: expanded ? 24 : 8, style: .continuous)
+        let shape = RoundedRectangle(cornerRadius: expanded ? 16 : 8, style: .continuous)
         return Group {
             if expanded {
                 expandedPanel
