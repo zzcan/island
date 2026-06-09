@@ -14,7 +14,7 @@ struct IslandView: View {
             Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .padding(.top, 0)
+        .padding(.top, 6)
         .environment(\.colorScheme, .dark)
         .onChange(of: model.eventTick) { _, _ in
             autoExpand = true
@@ -29,13 +29,8 @@ struct IslandView: View {
     private var morph: Animation { .spring(response: 0.3, dampingFraction: 0.82) }
 
     private var island: some View {
-        // Notch-hanging shape: nearly square top, rounded bottom when collapsed;
-        // rounds out all corners when expanded. Both radii animate via `morph`.
-        let topR: CGFloat = expanded ? 24 : 4
-        let botR: CGFloat = expanded ? 24 : 14
-        let shape = UnevenRoundedRectangle(topLeadingRadius: topR, bottomLeadingRadius: botR,
-                                           bottomTrailingRadius: botR, topTrailingRadius: topR,
-                                           style: .continuous)
+        // Uniform corners both states; radius animates via `morph`.
+        let shape = RoundedRectangle(cornerRadius: expanded ? 24 : 16, style: .continuous)
         return Group {
             if expanded {
                 expandedPanel
@@ -81,7 +76,7 @@ struct IslandView: View {
                 .foregroundStyle(.white)
         }
         .padding(.horizontal, 14)
-        .frame(width: 260, height: 26)
+        .frame(width: 260, height: 40)
     }
 
     // MARK: - Expanded panel
