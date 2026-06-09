@@ -9,11 +9,15 @@ public struct IslandRow: Equatable, Identifiable, Sendable {
     public let terminal: String
     public let cwd: String?
     public let action: String?
+    public let assistant: String?
+    public let tasks: [TaskItem]
     public init(id: String, title: String, status: SessionStatus, lastActivity: Date,
                 prompt: String? = nil, terminal: String = "cmux",
-                cwd: String? = nil, action: String? = nil) {
+                cwd: String? = nil, action: String? = nil,
+                assistant: String? = nil, tasks: [TaskItem] = []) {
         self.id = id; self.title = title; self.status = status; self.lastActivity = lastActivity
         self.prompt = prompt; self.terminal = terminal; self.cwd = cwd; self.action = action
+        self.assistant = assistant; self.tasks = tasks
     }
 }
 
@@ -35,6 +39,7 @@ public struct IslandDisplay: Equatable, Sendable {
             pillCount: sorted.count,
             rows: sorted.map { IslandRow(id: $0.id, title: $0.title, status: $0.status, lastActivity: $0.lastActivity,
                                          prompt: $0.lastPrompt, terminal: $0.tmux != nil ? "tmux" : "cmux",
-                                         cwd: $0.cwd, action: $0.lastAction) })
+                                         cwd: $0.cwd, action: $0.lastAction,
+                                         assistant: $0.lastAssistant, tasks: $0.tasks) })
     }
 }

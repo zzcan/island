@@ -29,6 +29,7 @@ public struct ClaudeHookInput: Codable, Equatable, Sendable {
     public let prompt: String?
     public let tool_name: String?
     public let tool_input: ToolInput?
+    public let transcript_path: String?
 
     public static func decode(_ data: Data) throws -> ClaudeHookInput {
         try JSONDecoder().decode(ClaudeHookInput.self, from: data)

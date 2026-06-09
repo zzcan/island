@@ -30,6 +30,8 @@ public final class SessionStore {
         if let tmux = m.tmux { s.tmux = tmux }
         if let p = m.prompt { s.lastPrompt = p }
         if let a = m.action { s.lastAction = a }
+        if let at = m.assistantText { s.lastAssistant = at }
+        if let t = m.tasks { s.tasks = t }
         s.lastActivity = now
 
         var request: NotificationRequest? = nil

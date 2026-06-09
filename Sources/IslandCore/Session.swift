@@ -14,12 +14,16 @@ public struct Session: Equatable, Identifiable, Sendable {
     public var lastActivity: Date
     public var lastPrompt: String?
     public var lastAction: String?
+    public var lastAssistant: String?
+    public var tasks: [TaskItem]
 
     public init(id: String, title: String, cwd: String?, status: SessionStatus,
                 cmux: CmuxContext?, tmux: TmuxContext?, lastActivity: Date,
-                lastPrompt: String? = nil, lastAction: String? = nil) {
+                lastPrompt: String? = nil, lastAction: String? = nil,
+                lastAssistant: String? = nil, tasks: [TaskItem] = []) {
         self.id = id; self.title = title; self.cwd = cwd; self.status = status
         self.cmux = cmux; self.tmux = tmux; self.lastActivity = lastActivity
         self.lastPrompt = lastPrompt; self.lastAction = lastAction
+        self.lastAssistant = lastAssistant; self.tasks = tasks
     }
 }
