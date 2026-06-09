@@ -24,8 +24,9 @@ struct IslandView: View {
         }
     }
 
-    // Dynamic-Island-style spring: fluid with a little overshoot.
-    private var morph: Animation { .spring(response: 0.42, dampingFraction: 0.72) }
+    // Matches the real Vibe Island: fast (~0.3s), snappy, almost no bounce,
+    // grows downward from the notch.
+    private var morph: Animation { .spring(response: 0.3, dampingFraction: 0.82) }
 
     private var island: some View {
         let radius: CGFloat = expanded ? 24 : 15
