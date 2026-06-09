@@ -14,7 +14,7 @@ struct IslandView: View {
             Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .padding(.top, 6)
+        .padding(.top, 0)
         .environment(\.colorScheme, .dark)
         .onChange(of: model.eventTick) { _, _ in
             autoExpand = true
@@ -29,7 +29,13 @@ struct IslandView: View {
     private var morph: Animation { .spring(response: 0.3, dampingFraction: 0.82) }
 
     private var island: some View {
-        let radius: CGFloat = expanded ? 24 : 15
+        // Notch-hanging shape: nearly square top, rounded bottom when collapsed;
+        // rounds out all corners when expanded. Both radii animate via `morph`.
+        let topR: CGFloat = expanded ? 24 : 4
+        let botR: CGFloat = expanded ? 24 : 14
+        let shape = UnevenRoundedRectangle(topLeadingRadius: topR, bottomLeadingRadius: botR,
+                                           bottomTrailingRadius: botR, topTrailingRadius: topR,
+                                           style: .continuous)
         return Group {
             if expanded {
                 expandedPanel
@@ -40,9 +46,8 @@ struct IslandView: View {
             }
         }
         // Single morphing black container: size + corner radius animate together.
-        .background(Color.black, in: RoundedRectangle(cornerRadius: radius, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: radius, style: .continuous)
-            .strokeBorder(.white.opacity(0.08), lineWidth: 0.5))
+        .background(Color.black, in: shape)
+        .overlay(shape.strokeBorder(.white.opacity(0.08), lineWidth: 0.5))
         .shadow(color: .black.opacity(0.4), radius: expanded ? 12 : 7, y: 3)
         .foregroundStyle(.white)
         .onHover { h in
@@ -75,8 +80,8 @@ struct IslandView: View {
                 .font(.system(size: 13, weight: .bold).monospacedDigit())
                 .foregroundStyle(.white)
         }
-        .padding(.horizontal, 16)
-        .frame(width: 360, height: 30)
+        .padding(.horizontal, 14)
+        .frame(width: 260, height: 26)
     }
 
     // MARK: - Expanded panel
