@@ -47,17 +47,24 @@ struct IslandView: View {
 
     private var collapsedCapsule: some View {
         HStack(spacing: 5) {
-            Image(systemName: model.display.pillSymbol)
-                .font(.system(size: 13, weight: .semibold))
-            if model.display.pillCount > 1 {
-                Text("\(model.display.pillCount)")
-                    .font(.system(size: 12, weight: .semibold))
+            ForEach(model.display.rows.prefix(4)) { row in
+                StatusDot(status: row.status)
             }
+            if model.display.pillCount > 4 {
+                Text("+\(model.display.pillCount - 4)")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.7))
+            }
+            Text("\(model.display.pillCount)")
+                .font(.system(size: 12, weight: .semibold).monospacedDigit())
+                .foregroundStyle(.white)
+                .padding(.leading, 1)
         }
-        .padding(.horizontal, 12)
-        .frame(height: 28)
-        .background(.ultraThinMaterial, in: Capsule())
-        .foregroundStyle(.white)
+        .padding(.horizontal, 11)
+        .frame(height: 26)
+        .background(Color.black, in: Capsule())
+        .overlay(Capsule().strokeBorder(.white.opacity(0.08), lineWidth: 0.5))
+        .shadow(color: .black.opacity(0.35), radius: 6, y: 2)
     }
 
     // MARK: - Expanded panel
@@ -158,5 +165,37 @@ struct IslandView: View {
         if hr < 24 { return "\(hr)h" }
         let days = Int(secs / 86400)
         return "\(days)d"
+    }
+}
+
+// MARK: - Collapsed status dot
+
+/// One dot per active session in the collapsed capsule. `working` gently pulses;
+/// `needsInput` gets a colored glow so urgent sessions catch the eye.
+private struct StatusDot: View {
+    let status: SessionStatus
+    @State private var pulsing = false
+
+    private var color: Color {
+        switch status {
+        case .done: return .green
+        case .needsInput: return .yellow
+        case .working: return .blue
+        case .idle: return .gray
+        }
+    }
+
+    var body: some View {
+        Circle()
+            .fill(color)
+            .frame(width: status == .needsInput ? 8 : 7, height: status == .needsInput ? 8 : 7)
+            .scaleEffect(status == .working && pulsing ? 1.0 : (status == .working ? 0.65 : 1.0))
+            .shadow(color: status == .needsInput ? color.opacity(0.9) : .clear, radius: 3)
+            .onAppear {
+                guard status == .working else { return }
+                withAnimation(.easeInOut(duration: 0.7).repeatForever(autoreverses: true)) {
+                    pulsing = true
+                }
+            }
     }
 }
