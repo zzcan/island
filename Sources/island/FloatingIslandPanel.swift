@@ -12,30 +12,10 @@ private final class NotchPanel: NSPanel {
 }
 
 /// Shared, mutable holder for the island's current visible rect (top-left origin, in
-/// the hosting view's coordinate space). IslandView writes it as the island grows and
-/// shrinks; PassthroughContainer reads it to decide which clicks to swallow.
+/// the hosting view's coordinate space, i.e. within the 500×360 canvas). IslandView
+/// writes it as the island grows/shrinks; the panel uses it to decide click passthrough.
 @MainActor final class IslandHitRegion {
     var rect: CGRect = .zero
-}
-
-/// The panel's content view. The panel canvas is a big fixed rectangle but only the
-/// capsule/expanded panel is drawn; the rest is transparent. Without this, the whole
-/// canvas would sit above the menu bar and could intercept clicks meant for apps (or
-/// menu-bar items) behind the transparent area. We hit-test ONLY the island's current
-/// rect and return nil elsewhere, so clicks outside the island pass straight through.
-private final class PassthroughContainer: NSView {
-    var hitRegion: IslandHitRegion?
-
-    override func hitTest(_ point: NSPoint) -> NSView? {
-        guard let region = hitRegion else { return super.hitTest(point) }
-        // Empty rect = island hidden (no sessions) or not yet measured: nothing drawn
-        // to click, so pass everything through.
-        guard !region.rect.isEmpty else { return nil }
-        let local = convert(point, from: superview)
-        // region.rect uses SwiftUI's top-left origin; flip if this view is bottom-left.
-        let p = isFlipped ? local : CGPoint(x: local.x, y: bounds.height - local.y)
-        return region.rect.contains(p) ? super.hitTest(point) : nil
-    }
 }
 
 /// Borderless, non-activating floating panel that hosts the IslandView at the
@@ -44,8 +24,8 @@ private final class PassthroughContainer: NSView {
 @MainActor
 final class FloatingIslandPanel {
     private let panel: NSPanel
-
     private let hitRegion = IslandHitRegion()
+    private var monitors: [Any] = []
 
     init(appModel: AppModel) {
         let region = hitRegion
@@ -61,6 +41,12 @@ final class FloatingIslandPanel {
         panel.isFloatingPanel = true
         panel.hidesOnDeactivate = false
         panel.becomesKeyOnlyIfNeeded = true
+        panel.acceptsMouseMovedEvents = true
+        // Start fully click-through; the mouse monitors enable interaction only while
+        // the cursor is actually over the island (see updatePassthrough). A returned-nil
+        // hitTest does NOT pass clicks through to other apps — only ignoresMouseEvents
+        // does — so we toggle that per cursor position instead.
+        panel.ignoresMouseEvents = true
         // z-order: notch > island > menu bar.
         // The notch is a hardware cutout (no pixels), so it is ALWAYS on top and the
         // capsule's middle is simply clipped by it — its wider ears peek out around
@@ -69,20 +55,45 @@ final class FloatingIslandPanel {
         // CGShieldingWindowLevel composites over the menu bar so the ears are visible
         // and hoverable. (NotchPanel.constrainFrameRect keeps it pinned to the top.)
         panel.level = NSWindow.Level(rawValue: Int(CGShieldingWindowLevel()))
-        // Wrap the hosting view in a passthrough container that only accepts clicks
-        // landing on the island itself.
-        let container = PassthroughContainer()
-        container.hitRegion = region
-        panel.contentView = container
-        hosting.frame = container.bounds
+        hosting.frame = panel.contentLayoutRect
         hosting.autoresizingMask = [.width, .height]
-        container.addSubview(hosting)
+        panel.contentView = hosting
         reposition()
+        installMouseMonitors()
     }
 
     func show() {
         reposition()
         panel.orderFrontRegardless()
+    }
+
+    /// Toggle window-level click-through based on whether the cursor is over the island.
+    /// The global monitor fires while we're passthrough (events go elsewhere) → detects
+    /// the cursor ENTERING the island; the local monitor fires while we own events →
+    /// detects it LEAVING. Both recompute the same way.
+    private func installMouseMonitors() {
+        let mask: NSEvent.EventTypeMask = [.mouseMoved, .leftMouseDragged]
+        let global = NSEvent.addGlobalMonitorForEvents(matching: mask) { [weak self] _ in
+            self?.updatePassthrough()
+        }
+        let local = NSEvent.addLocalMonitorForEvents(matching: mask) { [weak self] event in
+            self?.updatePassthrough()
+            return event
+        }
+        monitors = [global, local].compactMap { $0 }
+        updatePassthrough()
+    }
+
+    private func updatePassthrough() {
+        let r = hitRegion.rect
+        guard !r.isEmpty else { panel.ignoresMouseEvents = true; return }
+        // Convert the island rect (top-left, within the 500×360 canvas) to screen
+        // coordinates (bottom-left, matching NSEvent.mouseLocation). The canvas top is
+        // panel.frame.maxY, and the rect's y grows downward, so subtract r.maxY.
+        let screenRect = CGRect(x: panel.frame.minX + r.minX,
+                                y: panel.frame.maxY - r.maxY,
+                                width: r.width, height: r.height)
+        panel.ignoresMouseEvents = !screenRect.contains(NSEvent.mouseLocation)
     }
 
     private func reposition() {
