@@ -39,10 +39,12 @@ final class FloatingIslandPanel {
         // would drift to another monitor on a multi-display setup.
         let primary = NSScreen.screens.first(where: { $0.frame.origin == .zero })
         guard let screen = primary ?? NSScreen.main ?? NSScreen.screens.first else { return }
-        // visibleFrame excludes the menu bar so the capsule sits just below it.
-        let vf = screen.visibleFrame
+        // Use the FULL frame (not visibleFrame) so the capsule sits at the very top
+        // of the display — in the menu-bar / notch strip — like a Dynamic Island,
+        // rather than tucked just below the menu bar.
+        let f = screen.frame
         let size = panel.frame.size
-        panel.setFrameOrigin(NSPoint(x: vf.midX - size.width / 2,
-                                     y: vf.maxY - size.height))
+        panel.setFrameOrigin(NSPoint(x: f.midX - size.width / 2,
+                                     y: f.maxY - size.height))
     }
 }
