@@ -5,8 +5,14 @@ struct IslandView: View {
     @EnvironmentObject var model: AppModel
     @State private var hovering = false
     @State private var autoExpand = false
+    @State private var rowsIn = false   // drives the staggered row cascade
 
     private var expanded: Bool { hovering || autoExpand }
+
+    // Asymmetric geometry springs: expand has a touch of overshoot, collapse is
+    // crisper / more damped.
+    private var expandSpring: Animation { .spring(response: 0.34, dampingFraction: 0.82) }
+    private var collapseSpring: Animation { .spring(response: 0.26, dampingFraction: 0.9) }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -16,6 +22,16 @@ struct IslandView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .padding(.top, 6)
         .environment(\.colorScheme, .dark)
+        .onChange(of: expanded) { _, isExpanded in
+            if isExpanded {
+                // Shape leads, rows cascade in just after.
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.06) {
+                    if expanded { rowsIn = true }
+                }
+            } else {
+                rowsIn = false
+            }
+        }
         .onChange(of: model.eventTick) { _, _ in
             autoExpand = true
             DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
@@ -24,36 +40,38 @@ struct IslandView: View {
         }
     }
 
-    // Matches the real Vibe Island: fast (~0.3s), snappy, almost no bounce,
-    // grows downward from the notch.
-    private var morph: Animation { .spring(response: 0.3, dampingFraction: 0.82) }
-
     private var island: some View {
-        // Uniform corners both states; radius animates via `morph`.
+        // Uniform corners both states; radius animates with the geometry spring.
         let shape = RoundedRectangle(cornerRadius: expanded ? 24 : 8, style: .continuous)
         return Group {
             if expanded {
                 expandedPanel
-                    .transition(.scale(scale: 0.94, anchor: .top).combined(with: .opacity))
+                    // Opacity is decoupled from the geometry: fades a touch slower on
+                    // the way in (after the box leads), faster on the way out.
+                    .transition(.opacity.animation(.easeOut(duration: 0.2).delay(0.04)))
             } else {
                 collapsedCapsule
-                    .transition(.scale(scale: 0.94, anchor: .top).combined(with: .opacity))
+                    .transition(.opacity.animation(.easeOut(duration: 0.14)))
             }
         }
         // Single morphing black container: size + corner radius animate together.
         .background(Color.black, in: shape)
+        // Curtain reveal: content is clipped to the morphing box, so the panel
+        // appears to unfurl downward from the top as the box grows.
+        .clipShape(shape)
         .overlay(shape.strokeBorder(.white.opacity(0.08), lineWidth: 0.5))
         .shadow(color: .black.opacity(0.4), radius: expanded ? 12 : 7, y: 3)
         .foregroundStyle(.white)
         .onHover { h in
-            withAnimation(morph) { hovering = h }
+            withAnimation(h ? expandSpring : collapseSpring) { hovering = h }
             if !h {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
-                    if !hovering { withAnimation(morph) { autoExpand = false } }
+                    if !hovering { withAnimation(collapseSpring) { autoExpand = false } }
                 }
             }
         }
-        .animation(morph, value: expanded)
+        // Geometry (size + radius) follows the directional spring.
+        .animation(expanded ? expandSpring : collapseSpring, value: expanded)
     }
 
     // MARK: - Collapsed capsule
@@ -91,8 +109,15 @@ struct IslandView: View {
                     ForEach(Array(model.display.rows.enumerated()), id: \.element.id) { idx, row in
                         Button { model.jump(sessionId: row.id) } label: { rowView(row: row, now: context.date) }
                             .buttonStyle(.plain)
+                            // Staggered cascade: each row fades + slides in slightly after
+                            // the previous one, once the box has begun expanding.
+                            .opacity(rowsIn ? 1 : 0)
+                            .offset(y: rowsIn ? 0 : -4)
+                            .animation(.easeOut(duration: 0.2).delay(Double(idx) * 0.03), value: rowsIn)
                         if idx < model.display.rows.count - 1 {
                             Divider().overlay(.white.opacity(0.06)).padding(.horizontal, 12)
+                                .opacity(rowsIn ? 1 : 0)
+                                .animation(.easeOut(duration: 0.2).delay(Double(idx) * 0.03), value: rowsIn)
                         }
                     }
                 }
