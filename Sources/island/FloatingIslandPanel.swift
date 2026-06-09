@@ -18,6 +18,14 @@ private final class NotchPanel: NSPanel {
     var rect: CGRect = .zero
 }
 
+/// Lets the SwiftUI IslandView drive horizontal repositioning of the hosting panel.
+/// The panel installs these callbacks after init; the view calls them from its drag
+/// gesture (translation is the cumulative horizontal delta since the drag began).
+@MainActor final class IslandDragProxy {
+    var onChanged: ((CGFloat) -> Void)?
+    var onEnded: (() -> Void)?
+}
+
 /// Borderless, non-activating floating panel that hosts the IslandView at the
 /// top-center of the main screen. Non-activating so hovering/clicking it never
 /// steals focus from the user's terminal.
@@ -25,13 +33,23 @@ private final class NotchPanel: NSPanel {
 final class FloatingIslandPanel {
     private let panel: NSPanel
     private let hitRegion = IslandHitRegion()
+    private let dragProxy = IslandDragProxy()
     private var monitors: [Any] = []
+
+    /// Persisted horizontal offset (points) from the screen-centered default position.
+    /// Lets the user drag the island sideways to clear the menu-bar status icons.
+    private static let offsetKey = "island.horizontalOffset"
+    private var horizontalOffset: CGFloat = 0
+    private var dragStartOffset: CGFloat?
+    private var isDragging = false
 
     init(appModel: AppModel) {
         let region = hitRegion
-        let hosting = NSHostingView(rootView: IslandView(hitRegion: region).environmentObject(appModel))
+        let proxy = dragProxy
+        let hosting = NSHostingView(rootView: IslandView(hitRegion: region, drag: proxy).environmentObject(appModel))
         // Fixed generous canvas; the island draws top-center, the rest is transparent.
-        panel = NotchPanel(contentRect: NSRect(x: 0, y: 0, width: 500, height: 360),
+        // Wide enough to fit the 560pt expanded panel plus room to drag it sideways.
+        panel = NotchPanel(contentRect: NSRect(x: 0, y: 0, width: 640, height: 360),
                            styleMask: [.borderless, .nonactivatingPanel],
                            backing: .buffered, defer: false)
         panel.collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary]
@@ -58,8 +76,11 @@ final class FloatingIslandPanel {
         hosting.frame = panel.contentLayoutRect
         hosting.autoresizingMask = [.width, .height]
         panel.contentView = hosting
+        horizontalOffset = UserDefaults.standard.double(forKey: Self.offsetKey)
         reposition()
         installMouseMonitors()
+        dragProxy.onChanged = { [weak self] translationX in self?.handleDrag(translationX: translationX) }
+        dragProxy.onEnded = { [weak self] in self?.endDrag() }
     }
 
     func show() {
@@ -85,6 +106,9 @@ final class FloatingIslandPanel {
     }
 
     private func updatePassthrough() {
+        // While dragging, keep owning mouse events even if the cursor briefly leads the
+        // moving island, so the drag gesture isn't cut off mid-move.
+        if isDragging { panel.ignoresMouseEvents = false; return }
         let r = hitRegion.rect
         guard !r.isEmpty else { panel.ignoresMouseEvents = true; return }
         // Convert the island rect (top-left, within the 500×360 canvas) to screen
@@ -109,7 +133,31 @@ final class FloatingIslandPanel {
         // the notch. The notch (hardware) clips the capsule's middle, so its wider
         // ears peek out around it (see the z-order note in init).
         let contentTopInset: CGFloat = 6
-        panel.setFrameOrigin(NSPoint(x: f.midX - size.width / 2,
+        let centerX = f.midX - size.width / 2
+        horizontalOffset = clampedOffset(horizontalOffset, screen: f, size: size)
+        panel.setFrameOrigin(NSPoint(x: centerX + horizontalOffset,
                                      y: f.maxY - size.height + contentTopInset))
+    }
+
+    /// Clamp the offset so the visible island (centered within the wider transparent
+    /// canvas) stays on-screen with a margin, while the canvas itself may extend past
+    /// the screen edge (NotchPanel.constrainFrameRect allows that).
+    private func clampedOffset(_ off: CGFloat, screen f: CGRect, size: CGSize) -> CGFloat {
+        let margin: CGFloat = 130   // ~half the collapsed capsule, keeps it fully visible
+        let limit = max(0, f.width / 2 - margin)
+        return min(max(off, -limit), limit)
+    }
+
+    private func handleDrag(translationX: CGFloat) {
+        if dragStartOffset == nil { dragStartOffset = horizontalOffset }
+        isDragging = true
+        horizontalOffset = (dragStartOffset ?? 0) + translationX
+        reposition()   // applies the clamp and moves the panel
+    }
+
+    private func endDrag() {
+        isDragging = false
+        dragStartOffset = nil
+        UserDefaults.standard.set(horizontalOffset, forKey: Self.offsetKey)
     }
 }
