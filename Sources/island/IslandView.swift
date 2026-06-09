@@ -80,17 +80,12 @@ struct IslandView: View {
 
     private var collapsedCapsule: some View {
         HStack(spacing: 7) {
-            // Left: per-session equalizer glyphs (capped), like Vibe Island's notch bar.
-            ForEach(model.display.rows.prefix(5)) { row in
-                EqualizerBars(status: row.status, barCount: 4, barWidth: 2, maxHeight: 11, spacing: 1.5)
-            }
-            if model.display.pillCount > 5 {
-                Text("+\(model.display.pillCount - 5)")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.6))
+            // Left: only the latest (most-recently-active) session's status glyph.
+            if let latest = model.display.rows.first {
+                EqualizerBars(status: latest.status, barCount: 4, barWidth: 2, maxHeight: 11, spacing: 1.5)
             }
             Spacer(minLength: 16)
-            // Right: session count.
+            // Right: total session count.
             Text("\(model.display.pillCount)")
                 .font(.system(size: 13, weight: .bold).monospacedDigit())
                 .foregroundStyle(.white)
