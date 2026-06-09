@@ -34,9 +34,12 @@ final class FloatingIslandPanel {
     }
 
     private func reposition() {
-        guard let screen = NSScreen.main else { return }
-        // visibleFrame excludes the menu bar so the capsule sits just below it,
-        // not hidden behind the menu bar / notch (screen.frame would do that).
+        // Pin to the PRIMARY display (the one with the menu bar, origin (0,0)) —
+        // not NSScreen.main, which is whichever screen currently has key focus and
+        // would drift to another monitor on a multi-display setup.
+        let primary = NSScreen.screens.first(where: { $0.frame.origin == .zero })
+        guard let screen = primary ?? NSScreen.main ?? NSScreen.screens.first else { return }
+        // visibleFrame excludes the menu bar so the capsule sits just below it.
         let vf = screen.visibleFrame
         let size = panel.frame.size
         panel.setFrameOrigin(NSPoint(x: vf.midX - size.width / 2,
