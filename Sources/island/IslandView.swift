@@ -80,7 +80,7 @@ struct IslandView: View {
         HStack(spacing: 7) {
             // Left: per-session equalizer glyphs (capped), like Vibe Island's notch bar.
             ForEach(model.display.rows.prefix(5)) { row in
-                EqualizerGlyph(status: row.status)
+                EqualizerBars(status: row.status)
             }
             if model.display.pillCount > 5 {
                 Text("+\(model.display.pillCount - 5)")
@@ -363,85 +363,84 @@ private struct IdenticonView: View {
     }
 }
 
-// MARK: - Equalizer avatar (expanded row)
+// MARK: - Equalizer bars (status-coded color + motion)
 
-/// A ~26×26 dark rounded square with animated green equalizer bars,
-/// used as the session avatar in expanded rows.
-private struct EqualizerAvatar: View {
+/// Per-session equalizer, used in the collapsed bar and (wrapped) as the
+/// expanded-row avatar. Each status has its own COLOR and its own MOTION:
+///   working   → blue, bars bounce (active)
+///   needsInput→ yellow, bars blink in opacity (attention)
+///   done      → green, bars settle to an even height (calm/complete)
+///   idle      → gray, low and dim (quiet)
+private struct EqualizerBars: View {
     let status: SessionStatus
-    @State private var animating = false
+    var barCount: Int = 4
+    var barWidth: CGFloat = 2.5
+    var maxHeight: CGFloat = 14
+    var spacing: CGFloat = 2
+
+    @State private var phase = false
 
     private var color: Color {
         switch status {
-        case .done, .working: return .green
+        case .working:    return .blue
         case .needsInput: return .yellow
-        case .idle: return .gray
+        case .done:       return .green
+        case .idle:       return .gray
         }
     }
-
-    private let base: [CGFloat] = [7, 14, 9, 15, 8]
 
     var body: some View {
-        HStack(spacing: 2) {
-            ForEach(0..<5, id: \.self) { i in
-                Capsule()
-                    .fill(color)
-                    .frame(width: 3, height: h(i))
+        HStack(spacing: spacing) {
+            ForEach(0..<barCount, id: \.self) { i in
+                Capsule().fill(color).frame(width: barWidth, height: barHeight(i))
             }
         }
-        .frame(width: 26, height: 26)
-        .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 6))
-        .onAppear {
-            if status == .working {
-                withAnimation(.easeInOut(duration: 0.5).repeatForever(autoreverses: true)) {
-                    animating = true
-                }
-            }
+        .frame(height: maxHeight, alignment: .center)
+        .opacity(opacity)
+        .onAppear { applyMotion() }
+        .onChange(of: status) { _, _ in applyMotion() }
+    }
+
+    private func base(_ i: Int) -> CGFloat {
+        let pattern: [CGFloat] = [0.45, 0.85, 0.6, 0.95, 0.7]
+        return maxHeight * pattern[i % pattern.count]
+    }
+
+    private func barHeight(_ i: Int) -> CGFloat {
+        switch status {
+        case .working:    return phase ? base(i + 2) : base(i)   // bouncing
+        case .done:       return maxHeight * 0.75                // settled, even
+        case .needsInput: return maxHeight * 0.6                 // medium (opacity blinks)
+        case .idle:       return maxHeight * 0.4                 // low
         }
     }
 
-    private func h(_ i: Int) -> CGFloat {
-        status == .working ? (animating ? base[(i + 2) % 5] : base[i]) : base[i]
+    private var opacity: Double {
+        switch status {
+        case .needsInput: return phase ? 1.0 : 0.35   // attention blink
+        case .idle:       return 0.55
+        default:          return 1.0
+        }
+    }
+
+    private func applyMotion() {
+        switch status {
+        case .working:
+            withAnimation(.easeInOut(duration: 0.45).repeatForever(autoreverses: true)) { phase = true }
+        case .needsInput:
+            withAnimation(.easeInOut(duration: 0.6).repeatForever(autoreverses: true)) { phase = true }
+        case .done, .idle:
+            withAnimation(.easeOut(duration: 0.25)) { phase = false }   // stop prior repeat, settle
+        }
     }
 }
 
-// MARK: - Collapsed status dot
-
-/// One small equalizer glyph per active session in the collapsed bar — mirrors
-/// Vibe Island's notch bar. `working` animates the bars; color encodes status.
-private struct EqualizerGlyph: View {
+/// Expanded-row avatar: equalizer bars in a 26×26 dark rounded square.
+private struct EqualizerAvatar: View {
     let status: SessionStatus
-    @State private var animating = false
-
-    private var color: Color {
-        switch status {
-        case .done, .working: return .green
-        case .needsInput: return .yellow
-        case .idle: return .gray
-        }
-    }
-
-    private let base: [CGFloat] = [6, 12, 8, 13]
-
     var body: some View {
-        HStack(spacing: 2) {
-            ForEach(0..<4, id: \.self) { i in
-                Capsule()
-                    .fill(color)
-                    .frame(width: 2.5, height: height(i))
-            }
-        }
-        .frame(height: 14, alignment: .center)
-        .onAppear {
-            guard status == .working else { return }
-            withAnimation(.easeInOut(duration: 0.5).repeatForever(autoreverses: true)) {
-                animating = true
-            }
-        }
-    }
-
-    private func height(_ i: Int) -> CGFloat {
-        guard status == .working else { return base[i] }
-        return animating ? base[(i + 2) % 4] : base[i]
+        EqualizerBars(status: status, barCount: 5, barWidth: 3, maxHeight: 15, spacing: 2)
+            .frame(width: 26, height: 26)
+            .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 6))
     }
 }
