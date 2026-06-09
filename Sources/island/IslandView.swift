@@ -9,10 +9,10 @@ struct IslandView: View {
 
     private var expanded: Bool { hovering || autoExpand }
 
-    // Asymmetric geometry springs: expand has a touch of overshoot, collapse is
-    // crisper / more damped.
-    private var expandSpring: Animation { .spring(response: 0.34, dampingFraction: 0.82) }
-    private var collapseSpring: Animation { .spring(response: 0.26, dampingFraction: 0.9) }
+    // Asymmetric geometry springs, slow enough that the width/height morph reads
+    // clearly. Expand slightly slower with a hair of overshoot; collapse smooth.
+    private var expandSpring: Animation { .spring(response: 0.5, dampingFraction: 0.8) }
+    private var collapseSpring: Animation { .spring(response: 0.45, dampingFraction: 0.82) }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -24,8 +24,8 @@ struct IslandView: View {
         .environment(\.colorScheme, .dark)
         .onChange(of: expanded) { _, isExpanded in
             if isExpanded {
-                // Shape leads, rows cascade in just after.
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.06) {
+                // Shape leads, rows cascade in once the box is clearly growing.
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
                     if expanded { rowsIn = true }
                 }
             } else {
@@ -46,12 +46,12 @@ struct IslandView: View {
         return Group {
             if expanded {
                 expandedPanel
-                    // Opacity is decoupled from the geometry: fades a touch slower on
-                    // the way in (after the box leads), faster on the way out.
-                    .transition(.opacity.animation(.easeOut(duration: 0.2).delay(0.04)))
+                    // Opacity is decoupled from the geometry: the box leads, content
+                    // fades in over a slightly longer ramp so the size morph is visible.
+                    .transition(.opacity.animation(.easeOut(duration: 0.3).delay(0.08)))
             } else {
                 collapsedCapsule
-                    .transition(.opacity.animation(.easeOut(duration: 0.14)))
+                    .transition(.opacity.animation(.easeOut(duration: 0.2)))
             }
         }
         // Single morphing black container: size + corner radius animate together.
@@ -113,11 +113,11 @@ struct IslandView: View {
                             // the previous one, once the box has begun expanding.
                             .opacity(rowsIn ? 1 : 0)
                             .offset(y: rowsIn ? 0 : -4)
-                            .animation(.easeOut(duration: 0.2).delay(Double(idx) * 0.03), value: rowsIn)
+                            .animation(.easeOut(duration: 0.24).delay(Double(idx) * 0.04), value: rowsIn)
                         if idx < model.display.rows.count - 1 {
                             Divider().overlay(.white.opacity(0.06)).padding(.horizontal, 12)
                                 .opacity(rowsIn ? 1 : 0)
-                                .animation(.easeOut(duration: 0.2).delay(Double(idx) * 0.03), value: rowsIn)
+                                .animation(.easeOut(duration: 0.24).delay(Double(idx) * 0.04), value: rowsIn)
                         }
                     }
                 }
