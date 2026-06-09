@@ -2,12 +2,6 @@ import SwiftUI
 import Combine
 import IslandCore
 
-/// Carries the island's drawn rect up to the panel so it can hit-test only that area.
-private struct IslandFrameKey: PreferenceKey {
-    static let defaultValue: CGRect = .zero
-    static func reduce(value: inout CGRect, nextValue: () -> CGRect) { value = nextValue() }
-}
-
 struct IslandView: View {
     let hitRegion: IslandHitRegion
     @EnvironmentObject var model: AppModel
@@ -23,8 +17,6 @@ struct IslandView: View {
     private var expandSpring: Animation { .spring(response: 0.5, dampingFraction: 0.8) }
     private var collapseSpring: Animation { .spring(response: 0.45, dampingFraction: 0.82) }
 
-    private static let rootSpace = "islandRoot"
-
     var body: some View {
         VStack(spacing: 0) {
             if !model.display.hidden { island }
@@ -33,10 +25,6 @@ struct IslandView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .padding(.top, 6)
         .environment(\.colorScheme, .dark)
-        .coordinateSpace(name: Self.rootSpace)
-        // Report the island's drawn rect (in this view's space) up to the panel so it
-        // hit-tests only that area; clicks elsewhere on the transparent canvas pass through.
-        .onPreferenceChange(IslandFrameKey.self) { hitRegion.rect = $0 }
         .onChange(of: expanded) { _, isExpanded in
             if isExpanded {
                 // Shape leads, rows cascade in once the box is clearly growing.
@@ -87,10 +75,14 @@ struct IslandView: View {
         }
         // Geometry (size + radius) follows the directional spring.
         .animation(expanded ? expandSpring : collapseSpring, value: expanded)
-        // Measure the drawn box so the panel knows which clicks belong to the island.
+        // Report the drawn box (in the hosting view's coordinate space, which is what
+        // .global resolves to here) so the panel hit-tests only the island; clicks on
+        // the transparent canvas elsewhere pass through. Written directly to avoid
+        // SwiftUI preference-propagation timing issues.
         .background(GeometryReader { geo in
-            Color.clear.preference(key: IslandFrameKey.self,
-                                   value: geo.frame(in: .named(Self.rootSpace)))
+            Color.clear
+                .onAppear { hitRegion.rect = geo.frame(in: .global) }
+                .onChange(of: geo.frame(in: .global)) { _, f in hitRegion.rect = f }
         })
     }
 

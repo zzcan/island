@@ -27,7 +27,10 @@ private final class PassthroughContainer: NSView {
     var hitRegion: IslandHitRegion?
 
     override func hitTest(_ point: NSPoint) -> NSView? {
-        guard let region = hitRegion, !region.rect.isEmpty else { return super.hitTest(point) }
+        guard let region = hitRegion else { return super.hitTest(point) }
+        // Empty rect = island hidden (no sessions) or not yet measured: nothing drawn
+        // to click, so pass everything through.
+        guard !region.rect.isEmpty else { return nil }
         let local = convert(point, from: superview)
         // region.rect uses SwiftUI's top-left origin; flip if this view is bottom-left.
         let p = isFlipped ? local : CGPoint(x: local.x, y: bounds.height - local.y)
