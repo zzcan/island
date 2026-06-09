@@ -24,23 +24,35 @@ struct IslandView: View {
         }
     }
 
+    // Dynamic-Island-style spring: fluid with a little overshoot.
+    private var morph: Animation { .spring(response: 0.42, dampingFraction: 0.72) }
+
     private var island: some View {
-        Group {
+        let radius: CGFloat = expanded ? 24 : 15
+        return Group {
             if expanded {
                 expandedPanel
+                    .transition(.scale(scale: 0.94, anchor: .top).combined(with: .opacity))
             } else {
                 collapsedCapsule
+                    .transition(.scale(scale: 0.94, anchor: .top).combined(with: .opacity))
             }
         }
+        // Single morphing black container: size + corner radius animate together.
+        .background(Color.black, in: RoundedRectangle(cornerRadius: radius, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: radius, style: .continuous)
+            .strokeBorder(.white.opacity(0.08), lineWidth: 0.5))
+        .shadow(color: .black.opacity(0.4), radius: expanded ? 12 : 7, y: 3)
+        .foregroundStyle(.white)
         .onHover { h in
-            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) { hovering = h }
+            withAnimation(morph) { hovering = h }
             if !h {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
-                    if !hovering { autoExpand = false }
+                    if !hovering { withAnimation(morph) { autoExpand = false } }
                 }
             }
         }
-        .animation(.spring(response: 0.35, dampingFraction: 0.8), value: expanded)
+        .animation(morph, value: expanded)
     }
 
     // MARK: - Collapsed capsule
@@ -64,9 +76,6 @@ struct IslandView: View {
         }
         .padding(.horizontal, 16)
         .frame(width: 360, height: 30)
-        .background(Color.black, in: RoundedRectangle(cornerRadius: 15, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 15, style: .continuous).strokeBorder(.white.opacity(0.06), lineWidth: 0.5))
-        .shadow(color: .black.opacity(0.4), radius: 7, y: 2)
     }
 
     // MARK: - Expanded panel
@@ -89,10 +98,6 @@ struct IslandView: View {
                 .padding(.vertical, 4)
             }
             .frame(width: 460)
-            .background(Color.black, in: RoundedRectangle(cornerRadius: 22))
-            .overlay(RoundedRectangle(cornerRadius: 22).strokeBorder(.white.opacity(0.08), lineWidth: 0.5))
-            .foregroundStyle(.white)
-            .shadow(color: .black.opacity(0.45), radius: 12, y: 4)
         }
     }
 
