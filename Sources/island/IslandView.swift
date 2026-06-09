@@ -108,7 +108,7 @@ struct IslandView: View {
 
     private var expandedPanel: some View {
         VStack(alignment: .leading, spacing: 0) {
-            usageBar
+            headerBar
                 .padding(.horizontal, 12).padding(.vertical, 8)
             Divider().overlay(.white.opacity(0.08))
             VStack(spacing: 0) {
@@ -135,15 +135,10 @@ struct IslandView: View {
         .onReceive(Timer.publish(every: 30, on: .main, in: .common).autoconnect()) { now = $0 }
     }
 
-    // MARK: - Usage bar (real subscription usage from /api/oauth/usage)
+    // MARK: - Header bar
 
-    private var usageBar: some View {
+    private var headerBar: some View {
         HStack(spacing: 6) {
-            Image(systemName: "sparkles")
-                .font(.system(size: 12))
-                .foregroundStyle(.orange)
-            usageSegment(label: "5h", window: model.usage?.fiveHour)
-            usageSegment(label: "7d", window: model.usage?.sevenDay)
             Spacer()
             Image(systemName: "speaker.wave.2.fill")
                 .font(.system(size: 13))
@@ -151,35 +146,6 @@ struct IslandView: View {
             Image(systemName: "gearshape.fill")
                 .font(.system(size: 13))
                 .foregroundStyle(.secondary)
-        }
-    }
-
-    @ViewBuilder
-    private func usageSegment(label: String, window: UsageWindow?) -> some View {
-        HStack(spacing: 3) {
-            Text(label)
-                .font(.system(size: 12))
-                .foregroundStyle(.white)
-            if let w = window {
-                Text(UsageFormat.percent(w.utilization))
-                    .font(.system(size: 12))
-                    .foregroundStyle(usageColor(UsageTint.from(w.utilization)))
-                Text(UsageFormat.remaining(until: w.resetsAt, now: now))
-                    .font(.system(size: 12))
-                    .foregroundStyle(.secondary)
-            } else {
-                // No data yet (first fetch pending, keychain denied, or offline).
-                Text("--%").font(.system(size: 12)).foregroundStyle(.secondary)
-                Text("--").font(.system(size: 12)).foregroundStyle(.secondary)
-            }
-        }
-    }
-
-    private func usageColor(_ tint: UsageTint) -> Color {
-        switch tint {
-        case .ok:   return .green
-        case .warn: return .orange
-        case .crit: return .red
         }
     }
 
