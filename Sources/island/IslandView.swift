@@ -381,8 +381,6 @@ private struct EqualizerBars: View {
     var maxHeight: CGFloat = 14
     var spacing: CGFloat = 2
 
-    @State private var phase = false
-
     private var color: Color {
         switch status {
         case .working:    return .blue
@@ -392,48 +390,52 @@ private struct EqualizerBars: View {
         }
     }
 
+    private var isAnimated: Bool { status == .working || status == .needsInput }
+
     var body: some View {
+        // Time-driven: TimelineView(.animation) ticks per frame so the bars move
+        // continuously and reliably (no fragile repeatForever state). Static states
+        // skip the timeline entirely.
+        Group {
+            if isAnimated {
+                TimelineView(.animation) { ctx in
+                    bars(at: ctx.date.timeIntervalSinceReferenceDate)
+                }
+            } else {
+                bars(at: 0)
+            }
+        }
+    }
+
+    private func bars(at t: Double) -> some View {
         HStack(spacing: spacing) {
             ForEach(0..<barCount, id: \.self) { i in
-                Capsule().fill(color).frame(width: barWidth, height: barHeight(i))
+                Capsule().fill(color).frame(width: barWidth, height: height(i, t))
             }
         }
         .frame(height: maxHeight, alignment: .center)
-        .opacity(opacity)
-        .onAppear { applyMotion() }
-        .onChange(of: status) { _, _ in applyMotion() }
+        .opacity(opacity(at: t))
     }
 
-    private func base(_ i: Int) -> CGFloat {
-        let pattern: [CGFloat] = [0.45, 0.85, 0.6, 0.95, 0.7]
-        return maxHeight * pattern[i % pattern.count]
-    }
-
-    private func barHeight(_ i: Int) -> CGFloat {
-        switch status {
-        case .working:    return phase ? base(i + 2) : base(i)   // bouncing
-        case .done:       return maxHeight * 0.75                // settled, even
-        case .needsInput: return maxHeight * 0.6                 // medium (opacity blinks)
-        case .idle:       return maxHeight * 0.4                 // low
-        }
-    }
-
-    private var opacity: Double {
-        switch status {
-        case .needsInput: return phase ? 1.0 : 0.35   // attention blink
-        case .idle:       return 0.55
-        default:          return 1.0
-        }
-    }
-
-    private func applyMotion() {
+    private func height(_ i: Int, _ t: Double) -> CGFloat {
         switch status {
         case .working:
-            withAnimation(.easeInOut(duration: 0.45).repeatForever(autoreverses: true)) { phase = true }
+            // Per-bar sine wave, phase-offset by index → equalizer ripple.
+            let s = (sin(t * 6.0 + Double(i) * 0.9) + 1) / 2          // 0...1
+            return maxHeight * (0.3 + 0.65 * s)
+        case .done:       return maxHeight * 0.75    // settled, even
+        case .needsInput: return maxHeight * 0.6     // medium (opacity blinks)
+        case .idle:       return maxHeight * 0.4     // low
+        }
+    }
+
+    private func opacity(at t: Double) -> Double {
+        switch status {
         case .needsInput:
-            withAnimation(.easeInOut(duration: 0.6).repeatForever(autoreverses: true)) { phase = true }
-        case .done, .idle:
-            withAnimation(.easeOut(duration: 0.25)) { phase = false }   // stop prior repeat, settle
+            let s = (sin(t * 4.0) + 1) / 2
+            return 0.3 + 0.7 * s                     // attention blink
+        case .idle: return 0.55
+        default:    return 1.0
         }
     }
 }
