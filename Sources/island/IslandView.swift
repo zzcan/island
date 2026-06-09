@@ -1,4 +1,5 @@
 import SwiftUI
+import Combine
 import IslandCore
 
 struct IslandView: View {
@@ -6,6 +7,7 @@ struct IslandView: View {
     @State private var hovering = false
     @State private var autoExpand = false
     @State private var rowsIn = false   // drives the staggered row cascade
+    @State private var now = Date()     // refreshed by a timer for elapsed labels
 
     private var expanded: Bool { hovering || autoExpand }
 
@@ -100,31 +102,32 @@ struct IslandView: View {
     // MARK: - Expanded panel
 
     private var expandedPanel: some View {
-        TimelineView(.periodic(from: Date(), by: 60)) { context in
-            VStack(alignment: .leading, spacing: 0) {
-                usageBar
-                    .padding(.horizontal, 12).padding(.vertical, 8)
-                Divider().overlay(.white.opacity(0.08))
-                VStack(spacing: 0) {
-                    ForEach(Array(model.display.rows.enumerated()), id: \.element.id) { idx, row in
-                        Button { model.jump(sessionId: row.id) } label: { rowView(row: row, now: context.date) }
-                            .buttonStyle(.plain)
-                            // Staggered cascade: each row fades + slides in slightly after
-                            // the previous one, once the box has begun expanding.
+        VStack(alignment: .leading, spacing: 0) {
+            usageBar
+                .padding(.horizontal, 12).padding(.vertical, 8)
+            Divider().overlay(.white.opacity(0.08))
+            VStack(spacing: 0) {
+                ForEach(Array(model.display.rows.enumerated()), id: \.element.id) { idx, row in
+                    Button { model.jump(sessionId: row.id) } label: { rowView(row: row, now: now) }
+                        .buttonStyle(.plain)
+                        // Staggered cascade: each row fades + slides in slightly after
+                        // the previous one, once the box has begun expanding.
+                        .opacity(rowsIn ? 1 : 0)
+                        .offset(y: rowsIn ? 0 : -4)
+                        .animation(.easeOut(duration: 0.24).delay(Double(idx) * 0.04), value: rowsIn)
+                    if idx < model.display.rows.count - 1 {
+                        Divider().overlay(.white.opacity(0.06)).padding(.horizontal, 12)
                             .opacity(rowsIn ? 1 : 0)
-                            .offset(y: rowsIn ? 0 : -4)
                             .animation(.easeOut(duration: 0.24).delay(Double(idx) * 0.04), value: rowsIn)
-                        if idx < model.display.rows.count - 1 {
-                            Divider().overlay(.white.opacity(0.06)).padding(.horizontal, 12)
-                                .opacity(rowsIn ? 1 : 0)
-                                .animation(.easeOut(duration: 0.24).delay(Double(idx) * 0.04), value: rowsIn)
-                        }
                     }
                 }
-                .padding(.vertical, 4)
             }
-            .frame(width: 460)
+            .padding(.vertical, 4)
         }
+        .frame(width: 460)
+        // Refresh elapsed labels without rebuilding the row/avatar subtree
+        // (which would interrupt the equalizer's repeating animation).
+        .onReceive(Timer.publish(every: 30, on: .main, in: .common).autoconnect()) { now = $0 }
     }
 
     // MARK: - Usage bar (static placeholder)
