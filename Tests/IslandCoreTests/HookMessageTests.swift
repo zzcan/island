@@ -105,4 +105,10 @@ import Foundation
     @Test func postToolUseEventRecognized() {
         #expect(IslandEvent(claudeName: "PostToolUse") == .postToolUse)
     }
+
+    @Test func buildCapturesPermissionMode() {
+        let json = #"{"session_id":"s1","hook_event_name":"PostToolUse","permission_mode":"bypassPermissions"}"#
+        let msg = HookMessage.build(stdin: Data(json.utf8), env: [:], tmux: nil)
+        #expect(msg?.permissionMode == "bypassPermissions")
+    }
 }

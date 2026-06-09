@@ -32,6 +32,9 @@ public final class SessionStore {
         if let a = m.action { s.lastAction = a }
         if let at = m.assistantText { s.lastAssistant = at }
         if let t = m.tasks { s.tasks = t }
+        // permission_mode isn't on every event (e.g. SessionStart/Notification omit
+        // it); keep the last known value so the badge doesn't blink to "unknown".
+        if let pm = m.permissionMode { s.permissionMode = pm }
         s.lastActivity = now
 
         var request: NotificationRequest? = nil

@@ -186,7 +186,9 @@ struct IslandView: View {
                             .truncationMode(.middle)
                     }
                     Spacer(minLength: 6)
-                    badge("自动批准", tint: .red.opacity(0.35))
+                    if let mode = PermissionMode.from(row.permissionMode) {
+                        badge(mode.label, tint: permissionTint(mode.tint))
+                    }
                     badge("Claude")
                     badge(row.terminal)
                     Text(elapsedString(from: row.lastActivity, to: now))
@@ -274,6 +276,18 @@ struct IslandView: View {
     }
 
     // MARK: - Badge helper
+
+    /// Maps a permission-mode tint category to a badge colour, ordered by how much
+    /// authority the mode grants: neutral grey → blue → orange → orange-red → red.
+    private func permissionTint(_ tint: PermissionTint) -> Color {
+        switch tint {
+        case .neutral: return .white.opacity(0.12)
+        case .plan:    return .blue.opacity(0.35)
+        case .edits:   return .orange.opacity(0.35)
+        case .auto:    return .red.opacity(0.30)
+        case .full:    return .red.opacity(0.45)
+        }
+    }
 
     private func badge(_ text: String, tint: Color = .white.opacity(0.12)) -> some View {
         Text(text)

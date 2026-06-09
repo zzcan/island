@@ -13,14 +13,17 @@ public struct HookMessage: Codable, Equatable, Sendable {
     public let action: String?
     public let assistantText: String?
     public let tasks: [TaskItem]?
+    public let permissionMode: String?
 
     public init(event: IslandEvent, sessionId: String, cwd: String?, title: String?,
                 message: String?, cmux: CmuxContext?, tmux: TmuxContext?,
                 prompt: String? = nil, action: String? = nil,
-                assistantText: String? = nil, tasks: [TaskItem]? = nil) {
+                assistantText: String? = nil, tasks: [TaskItem]? = nil,
+                permissionMode: String? = nil) {
         self.event = event; self.sessionId = sessionId; self.cwd = cwd; self.title = title
         self.message = message; self.cmux = cmux; self.tmux = tmux; self.prompt = prompt
         self.action = action; self.assistantText = assistantText; self.tasks = tasks
+        self.permissionMode = permissionMode
     }
 
     /// Pure builder. `tmux` is passed in (the caller resolves it via a side-effecting CLI call)
@@ -51,7 +54,8 @@ public struct HookMessage: Codable, Equatable, Sendable {
 
         return HookMessage(event: event, sessionId: sid, cwd: input.cwd, title: title,
                            message: input.message, cmux: cmux, tmux: tmux, prompt: input.prompt,
-                           action: action, assistantText: assistantText, tasks: tasks)
+                           action: action, assistantText: assistantText, tasks: tasks,
+                           permissionMode: input.permission_mode)
     }
 
     /// If the string contains "/", returns the last 2 path components joined by "/".

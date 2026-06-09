@@ -7,10 +7,10 @@ import Foundation
 
     private func msg(_ event: IslandEvent, _ sid: String = "s1",
                      cwd: String? = "/Users/me/proj", message: String? = nil,
-                     cmux: CmuxContext? = nil) -> HookMessage {
+                     cmux: CmuxContext? = nil, permissionMode: String? = nil) -> HookMessage {
         HookMessage(event: event, sessionId: sid, cwd: cwd,
                     title: cwd.map { ($0 as NSString).lastPathComponent },
-                    message: message, cmux: cmux, tmux: nil)
+                    message: message, cmux: cmux, tmux: nil, permissionMode: permissionMode)
     }
 
     @Test func sessionStartRegistersIdle() {
@@ -51,6 +51,19 @@ import Foundation
         let note = store.apply(msg(.sessionEnd), now: t0)
         #expect(note == nil)
         #expect(store.sessions.isEmpty)
+    }
+
+    @Test func permissionModeStoredAndKeptAcrossEventsWithout() {
+        let store = SessionStore()
+        // PostToolUse carries the mode...
+        _ = store.apply(msg(.postToolUse, permissionMode: "bypassPermissions"), now: t0)
+        #expect(store.sessions["s1"]?.permissionMode == "bypassPermissions")
+        // ...a later event without the field must NOT wipe it.
+        _ = store.apply(msg(.notification, message: "?"), now: t0)
+        #expect(store.sessions["s1"]?.permissionMode == "bypassPermissions")
+        // ...and a new value overrides.
+        _ = store.apply(msg(.userPromptSubmit, permissionMode: "plan"), now: t0)
+        #expect(store.sessions["s1"]?.permissionMode == "plan")
     }
 
     @Test func cmuxContextStoredOnLatestMessage() {
