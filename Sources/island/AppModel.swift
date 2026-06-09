@@ -9,6 +9,7 @@ final class AppModel: ObservableObject {
     @Published private(set) var icon: IconState = .idle
     @Published private(set) var display: IslandDisplay = .from([])
     @Published private(set) var eventTick: Int = 0
+    @Published private(set) var usage: Usage?
 
     private let store = SessionStore()
     private let notifier = Notifier()
@@ -16,6 +17,7 @@ final class AppModel: ObservableObject {
     private var server: SocketServer?
     private var started = false
     private var pruneTimer: Timer?
+    private var usageTimer: Timer?
 
     /// A done/idle session whose lastActivity is older than this is treated as
     /// residual (its process likely died without firing SessionEnd) and pruned.
@@ -25,6 +27,8 @@ final class AppModel: ObservableObject {
     private static let staleInterval: TimeInterval = 30 * 60
     /// How often the prune sweep runs.
     private static let pruneTick: TimeInterval = 60
+    /// How often subscription usage is refreshed (changes slowly).
+    private static let usageTick: TimeInterval = 120
 
     // pruneTimer holds a weak self and AppModel lives for the whole app lifetime, so
     // there's nothing to tear down here (and Timer isn't Sendable / accessible from a
@@ -54,6 +58,22 @@ final class AppModel: ObservableObject {
         }
         RunLoop.main.add(timer, forMode: .common)
         pruneTimer = timer
+
+        // Poll subscription usage now and on an interval.
+        refreshUsage()
+        let usageT = Timer(timeInterval: Self.usageTick, repeats: true) { [weak self] _ in
+            Task { @MainActor in self?.refreshUsage() }
+        }
+        RunLoop.main.add(usageT, forMode: .common)
+        usageTimer = usageT
+    }
+
+    private func refreshUsage() {
+        Task {
+            let fetched = await UsageClient.fetch()
+            guard let fetched else { return }   // keep last value on failure
+            await MainActor.run { self.usage = fetched }
+        }
     }
 
     private func pruneStale() {
