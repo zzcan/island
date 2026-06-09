@@ -31,12 +31,14 @@ final class FloatingIslandPanel {
         panel.isFloatingPanel = true
         panel.hidesOnDeactivate = false
         panel.becomesKeyOnlyIfNeeded = true
-        // Sit BELOW the menu bar / notch in z-order so the notch (and menu bar)
-        // composite ON TOP of the capsule — the capsule tucks behind the notch and
-        // only its wider "ears" peek out to the sides. .floating is above normal app
-        // windows but under the menu bar. (The NotchPanel.constrainFrameRect override
-        // is what still lets us place it up in the top strip at this low level.)
-        panel.level = .floating
+        // z-order: notch > island > menu bar.
+        // The notch is a hardware cutout (no pixels), so it is ALWAYS on top and the
+        // capsule's middle is simply clipped by it — its wider ears peek out around
+        // it. We only need the island ABOVE the menu bar (vs .floating, which sits
+        // below it and let the menu bar swallow hover events, hiding the island).
+        // CGShieldingWindowLevel composites over the menu bar so the ears are visible
+        // and hoverable. (NotchPanel.constrainFrameRect keeps it pinned to the top.)
+        panel.level = NSWindow.Level(rawValue: Int(CGShieldingWindowLevel()))
         hosting.frame = panel.contentLayoutRect
         hosting.autoresizingMask = [.width, .height]
         panel.contentView = hosting
@@ -58,8 +60,8 @@ final class FloatingIslandPanel {
         let size = panel.frame.size
         // IslandView pads its content 6pt from the panel's top edge; compensate so
         // the capsule's top is flush with the physical screen top — same position as
-        // the notch. The panel sits BELOW the notch in z-order (see init), so the
-        // notch shows on top and the capsule's ears peek out around it.
+        // the notch. The notch (hardware) clips the capsule's middle, so its wider
+        // ears peek out around it (see the z-order note in init).
         let contentTopInset: CGFloat = 6
         panel.setFrameOrigin(NSPoint(x: f.midX - size.width / 2,
                                      y: f.maxY - size.height + contentTopInset))
