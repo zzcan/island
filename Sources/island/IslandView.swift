@@ -147,7 +147,7 @@ struct IslandView: View {
 
     private func rowView(row: IslandRow, now: Date) -> some View {
         HStack(alignment: .top, spacing: 10) {
-            IdenticonView(seed: row.cwd ?? row.id)
+            EqualizerAvatar(status: row.status)
             VStack(alignment: .leading, spacing: 3) {
                 // Line 1: title · cwd + badges + elapsed
                 HStack(spacing: 6) {
@@ -179,7 +179,15 @@ struct IslandView: View {
                         .lineLimit(1)
                         .truncationMode(.tail)
                 }
-                // Line 3: current action (only if present)
+                // Line 3: assistant's latest message (if present)
+                if let assistant = row.assistant {
+                    Text(assistant)
+                        .font(.caption)
+                        .foregroundStyle(.secondary.opacity(0.9))
+                        .lineLimit(2)
+                        .truncationMode(.tail)
+                }
+                // Line 4: current action (only if present)
                 if let action = row.action {
                     HStack(spacing: 5) {
                         Image(systemName: "bolt.horizontal.fill")
@@ -191,11 +199,55 @@ struct IslandView: View {
                             .lineLimit(1)
                     }
                 }
+                // Line 5: task block (if present)
+                if !row.tasks.isEmpty {
+                    let s = TaskSummary.from(row.tasks)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("任务 (\(s.completed) 已完成, \(s.inProgress) 进行中, \(s.pending) 待处理)")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                        ForEach(Array(row.tasks.prefix(3))) { item in
+                            HStack(spacing: 6) {
+                                taskIcon(item.status)
+                                Text(item.subject)
+                                    .font(.caption2)
+                                    .lineLimit(1)
+                                    .truncationMode(.tail)
+                                    .foregroundStyle(item.status == "completed" ? AnyShapeStyle(.secondary) : item.status == "in_progress" ? AnyShapeStyle(.white.opacity(0.9)) : AnyShapeStyle(.secondary))
+                                    .strikethrough(item.status == "completed")
+                            }
+                        }
+                        if row.tasks.count > 3 {
+                            Text("… +\(row.tasks.count - 3) 更多")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .padding(.top, 4)
+                }
             }
         }
         .padding(.vertical, 7)
         .padding(.horizontal, 12)
         .contentShape(Rectangle())
+    }
+
+    @ViewBuilder
+    private func taskIcon(_ status: String) -> some View {
+        switch status {
+        case "completed":
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: 10))
+                .foregroundStyle(.green)
+        case "in_progress":
+            Image(systemName: "circle.fill")
+                .font(.system(size: 8))
+                .foregroundStyle(.blue)
+        default:
+            Image(systemName: "circle")
+                .font(.system(size: 9))
+                .foregroundStyle(.secondary)
+        }
     }
 
     // MARK: - Badge helper
@@ -283,6 +335,48 @@ private struct IdenticonView: View {
         }
         .padding(4)
         .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 6))
+    }
+}
+
+// MARK: - Equalizer avatar (expanded row)
+
+/// A ~26×26 dark rounded square with animated green equalizer bars,
+/// used as the session avatar in expanded rows.
+private struct EqualizerAvatar: View {
+    let status: SessionStatus
+    @State private var animating = false
+
+    private var color: Color {
+        switch status {
+        case .done, .working: return .green
+        case .needsInput: return .yellow
+        case .idle: return .gray
+        }
+    }
+
+    private let base: [CGFloat] = [7, 14, 9, 15, 8]
+
+    var body: some View {
+        HStack(spacing: 2) {
+            ForEach(0..<5, id: \.self) { i in
+                Capsule()
+                    .fill(color)
+                    .frame(width: 3, height: h(i))
+            }
+        }
+        .frame(width: 26, height: 26)
+        .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 6))
+        .onAppear {
+            if status == .working {
+                withAnimation(.easeInOut(duration: 0.5).repeatForever(autoreverses: true)) {
+                    animating = true
+                }
+            }
+        }
+    }
+
+    private func h(_ i: Int) -> CGFloat {
+        status == .working ? (animating ? base[(i + 2) % 5] : base[i]) : base[i]
     }
 }
 
