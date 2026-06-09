@@ -1,6 +1,16 @@
 import AppKit
 import SwiftUI
 
+/// NSPanel that refuses AppKit's automatic "keep the window below the menu bar"
+/// constraint, so we can place the capsule flush at the very top of the display
+/// (over the notch / menu-bar strip). Without this override, setFrameOrigin to a
+/// point inside the menu-bar region is silently clamped back down.
+private final class NotchPanel: NSPanel {
+    override func constrainFrameRect(_ frameRect: NSRect, to screen: NSScreen?) -> NSRect {
+        frameRect
+    }
+}
+
 /// Borderless, non-activating floating panel that hosts the IslandView at the
 /// top-center of the main screen. Non-activating so hovering/clicking it never
 /// steals focus from the user's terminal.
@@ -11,10 +21,9 @@ final class FloatingIslandPanel {
     init(appModel: AppModel) {
         let hosting = NSHostingView(rootView: IslandView().environmentObject(appModel))
         // Fixed generous canvas; the island draws top-center, the rest is transparent.
-        panel = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 500, height: 360),
-                        styleMask: [.borderless, .nonactivatingPanel],
-                        backing: .buffered, defer: false)
-        panel.level = .statusBar
+        panel = NotchPanel(contentRect: NSRect(x: 0, y: 0, width: 500, height: 360),
+                           styleMask: [.borderless, .nonactivatingPanel],
+                           backing: .buffered, defer: false)
         panel.collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary]
         panel.isOpaque = false
         panel.backgroundColor = .clear
@@ -22,6 +31,11 @@ final class FloatingIslandPanel {
         panel.isFloatingPanel = true
         panel.hidesOnDeactivate = false
         panel.becomesKeyOnlyIfNeeded = true
+        // Set the level AFTER isFloatingPanel — toggling isFloatingPanel resets the
+        // level back to .floating, which both sits BELOW the menu bar and lets the
+        // OS clamp the frame. CGShieldingWindowLevel composites over the menu bar /
+        // notch row so the capsule overlays the notch instead of hiding beneath it.
+        panel.level = NSWindow.Level(rawValue: Int(CGShieldingWindowLevel()))
         hosting.frame = panel.contentLayoutRect
         hosting.autoresizingMask = [.width, .height]
         panel.contentView = hosting
