@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import Combine
 
 /// NSPanel that refuses AppKit's automatic "keep the window below the menu bar"
 /// constraint, so we can place the capsule flush at the very top of the display
@@ -18,6 +19,14 @@ private final class NotchPanel: NSPanel {
     var rect: CGRect = .zero
 }
 
+/// Continuous 0…1 "how open should the island be" signal, driven by how close the
+/// cursor is to the island. The panel updates it on every mouse-move; IslandView
+/// observes it and morphs its geometry to match — so the island opens as the pointer
+/// approaches instead of only on direct hover.
+@MainActor final class IslandProximity: ObservableObject {
+    @Published var value: CGFloat = 0
+}
+
 /// Lets the SwiftUI IslandView drive horizontal repositioning of the hosting panel.
 /// The panel installs these callbacks after init; the view calls them from its drag
 /// gesture (translation is the cumulative horizontal delta since the drag began).
@@ -34,11 +43,17 @@ final class FloatingIslandPanel {
     private let panel: NSPanel
     private let hitRegion = IslandHitRegion()
     private let dragProxy = IslandDragProxy()
+    private let proximity = IslandProximity()
     private var monitors: [Any] = []
+    private var settingsCancellable: AnyCancellable?
+    private var resetObserver: NSObjectProtocol?
 
     /// Persisted horizontal offset (points) from the screen-centered default position.
     /// Lets the user drag the island sideways to clear the menu-bar status icons.
     private static let offsetKey = "island.horizontalOffset"
+    /// Default horizontal offset for a fresh install / after "复位水平位置" — slightly
+    /// left of dead-center, the position settled on in use.
+    private static let defaultOffset: CGFloat = -7
     private var horizontalOffset: CGFloat = 0
     private var dragStartOffset: CGFloat?
     private var isDragging = false
@@ -46,10 +61,12 @@ final class FloatingIslandPanel {
     init(appModel: AppModel) {
         let region = hitRegion
         let proxy = dragProxy
-        let hosting = NSHostingView(rootView: IslandView(hitRegion: region, drag: proxy).environmentObject(appModel))
+        let hosting = NSHostingView(rootView: IslandView(hitRegion: region, drag: proxy, proximity: proximity).environmentObject(appModel))
         // Fixed generous canvas; the island draws top-center, the rest is transparent.
-        // Wide enough to fit the 560pt expanded panel plus room to drag it sideways.
-        panel = NotchPanel(contentRect: NSRect(x: 0, y: 0, width: 640, height: 360),
+        // Wide enough to fit the 560pt expanded panel plus room to drag it sideways, and
+        // tall enough for a full plan-review card (which can be ~640pt) — the panel's top
+        // stays flush to the screen, so the extra height just extends transparently down.
+        panel = NotchPanel(contentRect: NSRect(x: 0, y: 0, width: 640, height: 720),
                            styleMask: [.borderless, .nonactivatingPanel],
                            backing: .buffered, defer: false)
         panel.collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary]
@@ -76,11 +93,27 @@ final class FloatingIslandPanel {
         hosting.frame = panel.contentLayoutRect
         hosting.autoresizingMask = [.width, .height]
         panel.contentView = hosting
-        horizontalOffset = UserDefaults.standard.double(forKey: Self.offsetKey)
+        horizontalOffset = (UserDefaults.standard.object(forKey: Self.offsetKey) as? Double).map { CGFloat($0) } ?? Self.defaultOffset
         reposition()
         installMouseMonitors()
         dragProxy.onChanged = { [weak self] translationX in self?.handleDrag(translationX: translationX) }
         dragProxy.onEnded = { [weak self] in self?.endDrag() }
+        // Re-place the island whenever a settings change might affect its position
+        // (display choice / top offset). Deferred so the @Published value is updated.
+        settingsCancellable = Settings.shared.objectWillChange.sink { [weak self] _ in
+            Task { @MainActor in self?.reposition() }
+        }
+        // The "复位水平位置" button asks us to clear the drag offset and re-center.
+        resetObserver = NotificationCenter.default.addObserver(
+            forName: .resetIslandPosition, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                self.horizontalOffset = Self.defaultOffset
+                UserDefaults.standard.set(Double(Self.defaultOffset), forKey: Self.offsetKey)
+                self.reposition()
+            }
+        }
     }
 
     func show() {
@@ -96,13 +129,43 @@ final class FloatingIslandPanel {
         let mask: NSEvent.EventTypeMask = [.mouseMoved, .leftMouseDragged]
         let global = NSEvent.addGlobalMonitorForEvents(matching: mask) { [weak self] _ in
             self?.updatePassthrough()
+            self?.updateProximity()
         }
         let local = NSEvent.addLocalMonitorForEvents(matching: mask) { [weak self] event in
             self?.updatePassthrough()
+            self?.updateProximity()
             return event
         }
         monitors = [global, local].compactMap { $0 }
         updatePassthrough()
+        updateProximity()
+    }
+
+    /// Continuous open signal: how close is the cursor to the island?
+    /// The ramp is measured against a FIXED anchor (the collapsed pill at top-center),
+    /// not the live expanding rect — otherwise expansion would feed back into the
+    /// distance and snap fully open. Once the cursor is actually inside the (possibly
+    /// expanded) island we pin it to 1, so moving down through the rows holds it open.
+    private func updateProximity() {
+        let p = NSEvent.mouseLocation
+        let f = panel.frame
+        // Collapsed pill region in screen coords (flush at the top, centered).
+        let cw = CGFloat(Settings.shared.collapsedWidth)
+        let anchor = CGRect(x: f.midX - cw / 2, y: f.maxY - 40, width: cw, height: 34)
+        let dx = max(max(anchor.minX - p.x, 0), p.x - anchor.maxX)
+        let dy = max(max(anchor.minY - p.y, 0), p.y - anchor.maxY)
+        let dist = (dx * dx + dy * dy).squareRoot()
+        let pad = max(1, CGFloat(Settings.shared.activationPad))
+        var v = max(0, 1 - dist / pad)
+        // Hold fully open while the cursor is within the drawn island (+ a small pad).
+        let r = hitRegion.rect
+        if !r.isEmpty {
+            let live = CGRect(x: f.minX + r.minX, y: f.maxY - r.maxY, width: r.width, height: r.height)
+            if live.insetBy(dx: -6, dy: -6).contains(p) { v = 1 }
+        }
+        // Quantize lightly to avoid a render on every sub-pixel mouse move.
+        let q = (v * 100).rounded() / 100
+        if proximity.value != q { proximity.value = q }
     }
 
     private func updatePassthrough() {
@@ -121,22 +184,19 @@ final class FloatingIslandPanel {
     }
 
     private func reposition() {
-        // Pin to the PRIMARY display (the one with the menu bar, origin (0,0)) —
-        // not NSScreen.main, which is whichever screen currently has key focus and
-        // would drift to another monitor on a multi-display setup.
-        let primary = NSScreen.screens.first(where: { $0.frame.origin == .zero })
-        guard let screen = primary ?? NSScreen.main ?? NSScreen.screens.first else { return }
+        // Which display hosts the island is a user choice (primary / follow-focus /
+        // a specific monitor); Settings resolves it with sensible fallbacks.
+        guard let screen = Settings.shared.targetScreen() ?? NSScreen.main ?? NSScreen.screens.first else { return }
         let f = screen.frame
         let size = panel.frame.size
         // IslandView pads its content 6pt from the panel's top edge; compensate so
-        // the capsule's top is flush with the physical screen top — same position as
-        // the notch. The notch (hardware) clips the capsule's middle, so its wider
-        // ears peek out around it (see the z-order note in init).
+        // the capsule's top is flush with the physical screen top. `topOffset` then
+        // nudges it further down for imperfect notch fit.
         let contentTopInset: CGFloat = 6
         let centerX = f.midX - size.width / 2
         horizontalOffset = clampedOffset(horizontalOffset, screen: f, size: size)
         panel.setFrameOrigin(NSPoint(x: centerX + horizontalOffset,
-                                     y: f.maxY - size.height + contentTopInset))
+                                     y: f.maxY - size.height + contentTopInset - CGFloat(Settings.shared.topOffset)))
     }
 
     /// Clamp the offset so the visible island (centered within the wider transparent

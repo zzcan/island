@@ -4,6 +4,95 @@ import IslandCore
 // vibe-hook: invoked by Claude Code per event. Reads JSON on stdin, enriches with
 // cmux env + tmux context, sends one JSON line to the island socket. ALWAYS exits 0.
 
+/// Controlling tty of `pid` via `ps`, read from the process table — independent of
+/// whether any fd is a tty. Returns ("/dev/ttysNNN" or nil, parent pid).
+func ttyViaPS(pid: Int32) -> (tty: String?, ppid: Int32?) {
+    let p = Process()
+    p.executableURL = URL(fileURLWithPath: "/bin/ps")
+    p.arguments = ["-o", "tty=", "-o", "ppid=", "-p", String(pid)]
+    let pipe = Pipe(); p.standardOutput = pipe; p.standardError = Pipe()
+    guard (try? p.run()) != nil else { return (nil, nil) }
+    p.waitUntilExit()
+    let out = String(decoding: pipe.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+    let fields = out.split(whereSeparator: { $0 == " " || $0 == "\t" }).map(String.init)
+    guard fields.count >= 2 else { return (nil, nil) }
+    let ttyField = fields[0]
+    let ppid = Int32(fields[1])
+    let tty: String? = (ttyField == "??" || ttyField == "?")
+        ? nil : (ttyField.hasPrefix("/dev/") ? ttyField : "/dev/\(ttyField)")
+    return (tty, ppid)
+}
+
+/// The controlling terminal device of the session (e.g. "/dev/ttys003").
+///
+/// The hook is spawned by the CLI (Claude/Codex) with all three std fds piped, and —
+/// critically — usually WITHOUT its own controlling terminal, so `isatty`/`/dev/tty`
+/// both fail. The session's tty lives on an ancestor (the CLI / shell), so we walk the
+/// process tree and return the first ancestor that has one. This is the same device the
+/// GUI terminal reports as its tab's tty.
+func resolveTTY() -> String? {
+    // Fast paths: a tty directly on our fds, or a controlling /dev/tty if we have one.
+    for fd in Int32(0)...2 {
+        if isatty(fd) != 0, let name = ttyname(fd) { return String(cString: name) }
+    }
+    let fd = open("/dev/tty", O_RDONLY | O_NOCTTY)
+    if fd >= 0 {
+        defer { close(fd) }
+        if let name = ttyname(fd) { return String(cString: name) }
+    }
+    // Fallback: read the controlling tty from the process table, walking up to the CLI.
+    var pid = getpid()
+    for _ in 0..<8 {
+        let (tty, ppid) = ttyViaPS(pid: pid)
+        if let tty { return tty }
+        guard let ppid, ppid > 1 else { break }
+        pid = ppid
+    }
+    return nil
+}
+
+/// Handles a PermissionRequest hook invocation. For ExitPlanMode, sends the plan to the
+/// island and blocks for the user's decision, then prints Claude's expected stdout JSON.
+/// Prints nothing (→ Claude's own terminal prompt) for unhandled tools, missing data, or
+/// when the island isn't reachable / times out.
+func handlePermissionRequest(stdin: Data, input: ClaudeHookInput?, env: [String: String]) {
+    guard let input, let sid = input.session_id, !sid.isEmpty else { return }
+    guard input.tool_name == "ExitPlanMode",
+          let plan = input.tool_input?.plan, !plan.isEmpty else { return }
+
+    let requestId = UUID().uuidString
+    let title = input.cwd.map { ($0 as NSString).lastPathComponent }
+    let msg = HookMessage(event: .permissionRequest, sessionId: sid, cwd: input.cwd, title: title,
+                          message: nil, cmux: nil, tmux: nil,
+                          requestId: requestId, toolName: input.tool_name, plan: plan)
+    guard let line = try? JSONEncoder().encode(msg) else { return }
+    var payload = line
+    payload.append(0x0A)
+
+    // Block until the app returns the user's decision (or times out → terminal prompt).
+    guard let replyData = UnixSocketClient.request(payload, toPath: SocketPath.resolve(env: env),
+                                                   replyTimeoutMs: 585_000),
+          let reply = try? JSONDecoder().decode(PermissionReply.self, from: replyData),
+          let out = PlanHookOutput.json(reply: reply) else {
+        return
+    }
+    print(out)
+}
+
+/// Ghostty has no scripting interface, so we stamp its window with a unique title via an
+/// OSC 2 escape written to the session's tty device. The app later finds that window by
+/// title through Accessibility. Best-effort; no-ops if the tty isn't known/writable.
+func emitGhosttyTitle(_ title: String, ttyPath: String?) {
+    guard let ttyPath else { return }
+    let osc = "\u{1B}]2;\(title)\u{07}"
+    guard let data = osc.data(using: .utf8) else { return }
+    let fd = open(ttyPath, O_WRONLY | O_NOCTTY)
+    guard fd >= 0 else { return }
+    defer { close(fd) }
+    data.withUnsafeBytes { _ = write(fd, $0.baseAddress, $0.count) }
+}
+
 func resolveTmux(env: [String: String], runner: CommandRunner) -> TmuxContext? {
     guard env["TMUX"] != nil else { return nil }
     let cmd = Command(executable: "tmux",
@@ -76,6 +165,14 @@ let tmux = resolveTmux(env: env, runner: ProcessRunner())
 let hookInput = try? ClaudeHookInput.decode(stdin)
 let home = env["HOME"] ?? NSHomeDirectory()
 
+// PermissionRequest: interactive approval. We currently own only ExitPlanMode (plan
+// review) — block on the island for the user's decision and print Claude's expected
+// stdout. Anything we don't handle prints nothing → Claude shows its own terminal prompt.
+if hookInput?.hook_event_name == "PermissionRequest" {
+    handlePermissionRequest(stdin: stdin, input: hookInput, env: env)
+    exit(0)
+}
+
 // Load tasks if session_id is available
 let tasks: [TaskItem]? = hookInput?.session_id.flatMap { loadTasks(sessionId: $0, home: home) }
 
@@ -83,7 +180,17 @@ let tasks: [TaskItem]? = hookInput?.session_id.flatMap { loadTasks(sessionId: $0
 let transcript: (text: String?, model: String?) =
     hookInput?.transcript_path.map { loadTranscript(path: $0) } ?? (text: nil, model: nil)
 
-if let msg = HookMessage.build(stdin: stdin, env: env, tmux: tmux,
+// Classify the GUI terminal (iTerm2 / Terminal.app / Ghostty) for precise jumping.
+// Skipped inside tmux (env unreliable). For Ghostty, stamp the window title via OSC 2.
+let resolvedTTY = resolveTTY()
+let terminal: TerminalContext? = hookInput?.session_id.flatMap { sid in
+    TerminalDetect.detect(env: env, cwd: hookInput?.cwd, sessionId: sid, tty: resolvedTTY)
+}
+if let term = terminal, term.kind == .ghostty, let title = term.ghosttyTitle {
+    emitGhosttyTitle(title, ttyPath: resolvedTTY)
+}
+
+if let msg = HookMessage.build(stdin: stdin, env: env, tmux: tmux, terminal: terminal,
                                assistantText: transcript.text, tasks: tasks,
                                model: transcript.model),
    let line = try? JSONEncoder().encode(msg) {

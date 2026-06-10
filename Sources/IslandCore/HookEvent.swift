@@ -7,8 +7,13 @@ public enum IslandEvent: String, Codable, Equatable, Sendable {
     case stop = "Stop"
     case sessionEnd = "SessionEnd"
     case postToolUse = "PostToolUse"
+    /// Interactive approval (e.g. ExitPlanMode). Travels the request/response path, not
+    /// the fire-and-forget session feed — so it is intentionally NOT produced by
+    /// `init?(claudeName:)`; the hook constructs it directly.
+    case permissionRequest = "PermissionRequest"
 
     public init?(claudeName: String) {
+        if claudeName == "PermissionRequest" { return nil }
         self.init(rawValue: claudeName)
     }
 }
@@ -18,6 +23,7 @@ public struct ToolInput: Codable, Equatable, Sendable {
     public let command: String?
     public let pattern: String?
     public let path: String?
+    public let plan: String?   // ExitPlanMode carries the plan markdown here
 }
 
 /// The raw JSON Claude Code writes to a hook's stdin (subset we use).

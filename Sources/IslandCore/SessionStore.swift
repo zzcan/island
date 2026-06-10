@@ -28,6 +28,7 @@ public final class SessionStore {
         if let cwd = m.cwd { s.cwd = cwd }
         if let cmux = m.cmux { s.cmux = cmux }
         if let tmux = m.tmux { s.tmux = tmux }
+        if let terminal = m.terminal { s.terminal = terminal }
         if let p = m.prompt { s.lastPrompt = p }
         if let a = m.action { s.lastAction = a }
         if let at = m.assistantText { s.lastAssistant = at }
@@ -57,6 +58,8 @@ public final class SessionStore {
             s.status = .working
         case .sessionEnd:
             break // handled above
+        case .permissionRequest:
+            break // routed via the request/response path, not the session feed
         }
 
         sessions[m.sessionId] = s

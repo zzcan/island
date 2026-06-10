@@ -14,7 +14,7 @@ public struct IslandRow: Equatable, Identifiable, Sendable {
     public let permissionMode: String?
     public let model: String?
     public init(id: String, title: String, status: SessionStatus, lastActivity: Date,
-                prompt: String? = nil, terminal: String = "cmux",
+                prompt: String? = nil, terminal: String = "",
                 cwd: String? = nil, action: String? = nil,
                 assistant: String? = nil, tasks: [TaskItem] = [],
                 permissionMode: String? = nil, model: String? = nil) {
@@ -34,6 +34,19 @@ public struct IslandDisplay: Equatable, Sendable {
         self.hidden = hidden; self.pillSymbol = pillSymbol; self.pillCount = pillCount; self.rows = rows
     }
 
+    /// The host shown on a row's badge, by jump priority: cmux → tmux → GUI terminal.
+    /// Empty when the host is unknown (badge is then hidden).
+    public static func terminalLabel(_ s: Session) -> String {
+        if s.cmux != nil { return "cmux" }
+        if s.tmux != nil { return "tmux" }
+        switch s.terminal?.kind {
+        case .iterm:         return "iTerm2"
+        case .appleTerminal: return "Terminal"
+        case .ghostty:       return "Ghostty"
+        case nil:            return ""
+        }
+    }
+
     /// Pure mapping from sessions to the floating-island display model. Sorts by recency.
     public static func from(_ sessions: [Session]) -> IslandDisplay {
         let sorted = sessions.sorted { $0.lastActivity > $1.lastActivity }
@@ -42,7 +55,7 @@ public struct IslandDisplay: Equatable, Sendable {
             pillSymbol: IconState.aggregate(sorted).symbolName,
             pillCount: sorted.count,
             rows: sorted.map { IslandRow(id: $0.id, title: $0.title, status: $0.status, lastActivity: $0.lastActivity,
-                                         prompt: $0.lastPrompt, terminal: $0.tmux != nil ? "tmux" : "cmux",
+                                         prompt: $0.lastPrompt, terminal: terminalLabel($0),
                                          cwd: $0.cwd, action: $0.lastAction,
                                          assistant: $0.lastAssistant, tasks: $0.tasks,
                                          permissionMode: $0.permissionMode, model: $0.model) })

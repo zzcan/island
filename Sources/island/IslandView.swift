@@ -5,23 +5,59 @@ import IslandCore
 struct IslandView: View {
     let hitRegion: IslandHitRegion
     let drag: IslandDragProxy
+    @ObservedObject var proximity: IslandProximity
+    @ObservedObject private var settings = Settings.shared
     @EnvironmentObject var model: AppModel
-    @State private var hovering = false
     @State private var autoExpand = false
+    @State private var autoExpandToken = 0  // invalidates stale retract timers
     @State private var rowsIn = false   // drives the staggered row cascade
     @State private var now = Date()     // refreshed by a timer for elapsed labels
     @State private var hoveredRow: String?  // id of the row the cursor is over
+    @State private var expandedHeight: CGFloat = 220  // measured natural panel height
 
-    private var expanded: Bool { hovering || autoExpand }
+    // Continuous open amount (0…1). Proximity tracks the cursor directly (the
+    // "follow-the-cursor" feel); an event briefly forces it fully open via autoExpand;
+    // a pending plan review pins it fully open until the user decides.
+    private var openness: CGFloat {
+        max(proximity.value, autoExpand ? 1 : 0, model.pendingPlan != nil ? 1 : 0)
+    }
+    // Eased version used for geometry so the open accelerates near the end.
+    private var eased: CGFloat { let o = min(max(openness, 0), 1); return o * o * (3 - 2 * o) }
+    // Boolean view of the same state for bits that only need on/off (the row cascade).
+    private var expanded: Bool { openness > 0.5 }
 
-    // Asymmetric geometry springs, slow enough that the width/height morph reads
-    // clearly. Expand slightly slower with a hair of overshoot; collapse smooth.
-    private var expandSpring: Animation { .spring(response: 0.5, dampingFraction: 0.8) }
-    private var collapseSpring: Animation { .spring(response: 0.45, dampingFraction: 0.82) }
+    // Spring used ONLY for the discrete autoExpand (event) transition. Proximity
+    // changes are deliberately NOT animated — they snap to each cursor position so
+    // the island geometry tracks the pointer instead of lagging behind a spring.
+    private var expandSpring: Animation { .spring(response: 0.34, dampingFraction: 0.78) }
+
+    /// Scaled font for expanded-panel text (honours the content font-size setting).
+    private func fs(_ size: CGFloat, _ weight: Font.Weight = .regular) -> Font {
+        .system(size: size * CGFloat(settings.fontScale), weight: weight)
+    }
+
+    /// The sprite for a status under the selected character theme.
+    private func spriteFor(_ status: SessionStatus) -> PixelSprite {
+        (SpriteTheme(rawValue: settings.spriteTheme) ?? .invaders).sprite(for: status)
+    }
+
+    /// Colour-mode override for a status glyph; nil = use the sprite's own ("原色")
+    /// palette. Idle is dimmed in the monochrome modes.
+    private func glyphColor(_ status: SessionStatus) -> Color? {
+        let dim: Double = status == .idle ? 0.45 : 1.0
+        switch settings.colorMode {
+        case 1: return Color(red: 0.30, green: 1.0, blue: 0.55).opacity(dim)   // phosphor green
+        case 2: return Color(red: 1.0, green: 0.75, blue: 0.20).opacity(dim)   // amber
+        case 3: return Color(red: 0.55, green: 0.78, blue: 0.20).opacity(dim)  // Game Boy DMG green
+        default: return nil
+        }
+    }
 
     var body: some View {
         VStack(spacing: 0) {
-            if !model.display.hidden { island }
+            // Show the island when there are sessions to display, or when a plan is
+            // waiting for review (which must surface even if the panel is auto-hidden).
+            if !model.display.hidden || model.pendingPlan != nil { island }
             Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -39,44 +75,58 @@ struct IslandView: View {
         }
         .onChange(of: model.eventTick) { _, _ in
             autoExpand = true
-            DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-                if !hovering { autoExpand = false }
+            // Retract unconditionally after the flash. If the cursor is still near, the
+            // proximity term of `openness` keeps the panel open — so this never gets
+            // "stuck" the way a proximity-gated retract could. The token makes only the
+            // most-recent event's timer fire, so rapid events extend the window cleanly.
+            autoExpandToken &+= 1
+            let token = autoExpandToken
+            DispatchQueue.main.asyncAfter(deadline: .now() + settings.autoCollapseDwell) {
+                if token == autoExpandToken { autoExpand = false }
             }
         }
     }
 
     private var island: some View {
-        // Uniform corners both states; radius animates with the geometry spring.
-        let shape = RoundedRectangle(cornerRadius: expanded ? 16 : 8, style: .continuous)
-        return Group {
-            if expanded {
-                expandedPanel
-                    // Opacity is decoupled from the geometry: the box leads, content
-                    // fades in over a slightly longer ramp so the size morph is visible.
-                    .transition(.opacity.animation(.easeOut(duration: 0.3).delay(0.08)))
-            } else {
-                collapsedCapsule
-                    .transition(.opacity.animation(.easeOut(duration: 0.2)))
-            }
+        // Geometry is a continuous function of `openness` so the box tracks the
+        // cursor as it approaches (proximity), rather than snapping between two
+        // discrete states.
+        let e = eased
+        let cw = CGFloat(settings.collapsedWidth)
+        let ew = CGFloat(settings.expandedWidth)
+        let w = cw + (ew - cw) * e
+        let h = 34 + (max(expandedHeight, 34) - 34) * e
+        let corner = 8 + (16 - 8) * e
+        let shape = RoundedRectangle(cornerRadius: corner, style: .continuous)
+        // Content crossfade: collapsed pill fades out over the first third of the
+        // open; the expanded panel fades in over the back three-quarters. The box
+        // also clips both (curtain reveal), so the panel unfurls from the top.
+        let collapsedOpacity = Double(max(0, 1 - e / 0.33))
+        let expandedOpacity = Double(max(0, (e - 0.22) / 0.78))
+        return ZStack(alignment: .top) {
+            expandedPanel
+                // Natural height regardless of the clipping container, so we can both
+                // measure it and let the box clip-reveal it.
+                .fixedSize(horizontal: false, vertical: true)
+                .background(GeometryReader { g in
+                    Color.clear
+                        .onAppear { expandedHeight = g.size.height }
+                        .onChange(of: g.size.height) { _, nh in expandedHeight = nh }
+                })
+                .opacity(expandedOpacity)
+            collapsedCapsule
+                .opacity(collapsedOpacity)
         }
-        // Single morphing black container: size + corner radius animate together.
+        .frame(width: w, height: h, alignment: .top)
         .background(Color.black, in: shape)
-        // Curtain reveal: content is clipped to the morphing box, so the panel
-        // appears to unfurl downward from the top as the box grows.
         .clipShape(shape)
         .overlay(shape.strokeBorder(.white.opacity(0.08), lineWidth: 0.5))
-        .shadow(color: .black.opacity(0.4), radius: expanded ? 12 : 7, y: 3)
+        .shadow(color: .black.opacity(0.4), radius: 7 + 5 * e, y: 3)
         .foregroundStyle(.white)
-        .onHover { h in
-            withAnimation(h ? expandSpring : collapseSpring) { hovering = h }
-            if !h {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
-                    if !hovering { withAnimation(collapseSpring) { autoExpand = false } }
-                }
-            }
-        }
-        // Geometry (size + radius) follows the directional spring.
-        .animation(expanded ? expandSpring : collapseSpring, value: expanded)
+        // Animate ONLY the discrete event-driven open/close. Proximity-driven changes
+        // to `openness` are not keyed here, so they render instantly and track the
+        // cursor; the autoExpand transition rides the spring.
+        .animation(expandSpring, value: autoExpand)
         // Report the drawn box (in the hosting view's coordinate space, which is what
         // .global resolves to here) so the panel hit-tests only the island; clicks on
         // the transparent canvas elsewhere pass through. Written directly to avoid
@@ -101,18 +151,21 @@ struct IslandView: View {
 
     private var collapsedCapsule: some View {
         HStack(spacing: 7) {
-            // Left: only the latest (most-recently-active) session's status glyph.
+            // Left: only the latest (most-recently-active) session's status glyph,
+            // drawn as a pixel sprite (matches the expanded-row avatars).
             if let latest = model.display.rows.first {
-                EqualizerBars(status: latest.status, barCount: 4, barWidth: 2, maxHeight: 11, spacing: 1.5)
+                PixelGlyphView(sprite: spriteFor(latest.status), pixelSize: 2,
+                               colorOverride: glyphColor(latest.status))
+                    .frame(width: 28, alignment: .leading)
             }
             Spacer(minLength: 16)
             // Right: total session count.
             Text("\(model.display.pillCount)")
-                .font(.system(size: 13, weight: .bold).monospacedDigit())
+                .font(fs(13, .bold).monospacedDigit())
                 .foregroundStyle(.white)
         }
         .padding(.horizontal, 14)
-        .frame(width: 240, height: 34)
+        .frame(width: CGFloat(settings.collapsedWidth), height: 34)
     }
 
     // MARK: - Expanded panel
@@ -121,10 +174,16 @@ struct IslandView: View {
         VStack(alignment: .leading, spacing: 0) {
             headerBar
                 .padding(.horizontal, 12).padding(.vertical, 8)
-            Divider().overlay(.white.opacity(0.08))
+            // A pending plan sits inline, ABOVE the session rows — part of the same panel,
+            // not a separate window. The session list stays visible below it.
+            if let plan = model.pendingPlan {
+                PlanReviewCard(plan: plan) { reply in model.resolvePlan(plan, reply) }
+                    .padding(.bottom, 6)
+                Rectangle().fill(.white.opacity(0.08)).frame(height: 1).padding(.bottom, 4)
+            }
             VStack(spacing: 0) {
                 ForEach(Array(model.display.rows.enumerated()), id: \.element.id) { idx, row in
-                    Button { model.jump(sessionId: row.id) } label: { rowView(row: row, now: now) }
+                    Button { if settings.clickToJump { model.jump(sessionId: row.id) } } label: { rowView(row: row, now: now) }
                         .buttonStyle(.plain)
                         // Hover highlight: subtle background while the cursor is over the row.
                         .background(hoveredRow == row.id ? Color.white.opacity(0.07) : Color.clear)
@@ -138,16 +197,13 @@ struct IslandView: View {
                         .opacity(rowsIn ? 1 : 0)
                         .offset(y: rowsIn ? 0 : -4)
                         .animation(.easeOut(duration: 0.24).delay(Double(idx) * 0.04), value: rowsIn)
-                    if idx < model.display.rows.count - 1 {
-                        Divider().overlay(.white.opacity(0.06)).padding(.horizontal, 12)
-                            .opacity(rowsIn ? 1 : 0)
-                            .animation(.easeOut(duration: 0.24).delay(Double(idx) * 0.04), value: rowsIn)
-                    }
                 }
             }
             .padding(.vertical, 4)
         }
-        .frame(width: 560)
+        .padding(.horizontal, 8)
+        .padding(.bottom, 8)
+        .frame(width: CGFloat(settings.expandedWidth))
         // Refresh elapsed labels without rebuilding the row/avatar subtree
         // (which would interrupt the equalizer's repeating animation).
         .onReceive(Timer.publish(every: 30, on: .main, in: .common).autoconnect()) { now = $0 }
@@ -158,12 +214,26 @@ struct IslandView: View {
     private var headerBar: some View {
         HStack(spacing: 6) {
             Spacer()
-            Image(systemName: "speaker.wave.2.fill")
-                .font(.system(size: 13))
-                .foregroundStyle(.secondary)
-            Image(systemName: "gearshape.fill")
-                .font(.system(size: 13))
-                .foregroundStyle(.secondary)
+            // Toggle event sounds. Slashed icon ⇒ muted.
+            Button { settings.soundEnabled.toggle() } label: {
+                Image(systemName: settings.soundEnabled ? "speaker.wave.2.fill" : "speaker.slash.fill")
+                    .font(.system(size: 13))
+                    .foregroundStyle(settings.soundEnabled ? AnyShapeStyle(.secondary) : AnyShapeStyle(.white.opacity(0.35)))
+                    .frame(width: 18, height: 18)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help(settings.soundEnabled ? "静音事件音效" : "开启事件音效")
+            // Open the settings window.
+            Button { model.openSettings() } label: {
+                Image(systemName: "gearshape.fill")
+                    .font(.system(size: 13))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 18, height: 18)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help("设置")
         }
     }
 
@@ -171,17 +241,17 @@ struct IslandView: View {
 
     private func rowView(row: IslandRow, now: Date) -> some View {
         HStack(alignment: .top, spacing: 10) {
-            EqualizerAvatar(status: row.status)
+            PixelAvatar(sprite: spriteFor(row.status), color: glyphColor(row.status))
             VStack(alignment: .leading, spacing: 5) {
                 // Line 1: title · cwd + badges + elapsed
                 HStack(spacing: 6) {
                     Text(row.title)
-                        .font(.system(size: 13, weight: .semibold))
+                        .font(fs(13, .semibold))
                         .foregroundStyle(.white)
                         .lineLimit(1)
                     if let cwd = row.cwd {
                         Text("· " + shortCwd(cwd))
-                            .font(.system(size: 11))
+                            .font(fs(11))
                             .foregroundStyle(.secondary)
                             .lineLimit(1)
                             .truncationMode(.middle)
@@ -191,21 +261,21 @@ struct IslandView: View {
                         badge(mode.label, tint: permissionTint(mode.tint))
                     }
                     badge(row.model ?? "Claude")
-                    badge(row.terminal)
+                    if !row.terminal.isEmpty { badge(row.terminal) }
                     Text(elapsedString(from: row.lastActivity, to: now))
-                        .font(.caption2)
+                        .font(fs(11))
                         .foregroundStyle(.secondary)
                 }
                 // Line 2: prompt
                 Text("你：" + (row.prompt ?? "—"))
-                    .font(.caption)
+                    .font(fs(12))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
                     .truncationMode(.tail)
                 // Line 3: assistant's latest message (if present)
                 if let assistant = row.assistant {
                     Text(assistant)
-                        .font(.caption)
+                        .font(fs(12))
                         .foregroundStyle(.secondary.opacity(0.9))
                         .lineLimit(2)
                         .truncationMode(.tail)
@@ -217,7 +287,7 @@ struct IslandView: View {
                             .font(.system(size: 9))
                             .foregroundStyle(.blue)
                         Text(action)
-                            .font(.caption2)
+                            .font(fs(11))
                             .foregroundStyle(.blue.opacity(0.9))
                             .lineLimit(1)
                     }
@@ -227,13 +297,13 @@ struct IslandView: View {
                     let s = TaskSummary.from(row.tasks)
                     VStack(alignment: .leading, spacing: 2) {
                         Text("任务 (\(s.completed) 已完成, \(s.inProgress) 进行中, \(s.pending) 待处理)")
-                            .font(.caption2)
+                            .font(fs(11))
                             .foregroundStyle(.secondary)
                         ForEach(Array(row.tasks.prefix(3))) { item in
                             HStack(spacing: 6) {
                                 taskIcon(item.status)
                                 Text(item.subject)
-                                    .font(.caption2)
+                                    .font(fs(11))
                                     .lineLimit(1)
                                     .truncationMode(.tail)
                                     .foregroundStyle(item.status == "completed" ? AnyShapeStyle(.secondary) : item.status == "in_progress" ? AnyShapeStyle(.white.opacity(0.9)) : AnyShapeStyle(.secondary))
@@ -242,7 +312,7 @@ struct IslandView: View {
                         }
                         if row.tasks.count > 3 {
                             Text("… +\(row.tasks.count - 3) 更多")
-                                .font(.caption2)
+                                .font(fs(11))
                                 .foregroundStyle(.secondary)
                         }
                     }
@@ -289,7 +359,7 @@ struct IslandView: View {
 
     private func badge(_ text: String, tint: Color = .white.opacity(0.12)) -> some View {
         Text(text)
-            .font(.system(size: 10, weight: .medium))
+            .font(fs(10, .medium))
             .padding(.horizontal, 6)
             .padding(.vertical, 2)
             .background(tint, in: Capsule())
@@ -350,86 +420,16 @@ private struct IdenticonView: View {
     }
 }
 
-// MARK: - Equalizer bars (status-coded color + motion)
+// MARK: - Pixel avatar (status-coded sprite)
 
-/// Per-session equalizer, used in the collapsed bar and (wrapped) as the
-/// expanded-row avatar. Each status has its own COLOR and its own MOTION:
-///   working   → blue, bars bounce (active)
-///   needsInput→ yellow, bars blink in opacity (attention)
-///   done      → green, bars settle to an even height (calm/complete)
-///   idle      → gray, low and dim (quiet)
-private struct EqualizerBars: View {
-    let status: SessionStatus
-    var barCount: Int = 4
-    var barWidth: CGFloat = 2.5
-    var maxHeight: CGFloat = 14
-    var spacing: CGFloat = 2
-
-    private var color: Color {
-        switch status {
-        case .working:    return .blue
-        case .needsInput: return .yellow
-        case .done:       return .green
-        case .idle:       return .gray
-        }
-    }
-
-    private var isAnimated: Bool { status == .working || status == .needsInput }
-
+/// Expanded-row avatar: the per-status pixel sprite centered in a dark rounded
+/// square. Status colour + motion live in `PixelSprite.forStatus`.
+private struct PixelAvatar: View {
+    let sprite: PixelSprite
+    var color: Color? = nil
     var body: some View {
-        // Time-driven: TimelineView(.animation) ticks per frame so the bars move
-        // continuously and reliably (no fragile repeatForever state). Static states
-        // skip the timeline entirely.
-        Group {
-            if isAnimated {
-                TimelineView(.animation) { ctx in
-                    bars(at: ctx.date.timeIntervalSinceReferenceDate)
-                }
-            } else {
-                bars(at: 0)
-            }
-        }
-    }
-
-    private func bars(at t: Double) -> some View {
-        HStack(spacing: spacing) {
-            ForEach(0..<barCount, id: \.self) { i in
-                Capsule().fill(color).frame(width: barWidth, height: height(i, t))
-            }
-        }
-        .frame(height: maxHeight, alignment: .center)
-        .opacity(opacity(at: t))
-    }
-
-    private func height(_ i: Int, _ t: Double) -> CGFloat {
-        switch status {
-        case .working:
-            // Per-bar sine wave, phase-offset by index → equalizer ripple.
-            let s = (sin(t * 6.0 + Double(i) * 0.9) + 1) / 2          // 0...1
-            return maxHeight * (0.3 + 0.65 * s)
-        case .done:       return maxHeight * 0.75    // settled, even
-        case .needsInput: return maxHeight * 0.6     // medium (opacity blinks)
-        case .idle:       return maxHeight * 0.4     // low
-        }
-    }
-
-    private func opacity(at t: Double) -> Double {
-        switch status {
-        case .needsInput:
-            let s = (sin(t * 4.0) + 1) / 2
-            return 0.3 + 0.7 * s                     // attention blink
-        case .idle: return 0.55
-        default:    return 1.0
-        }
-    }
-}
-
-/// Expanded-row avatar: equalizer bars in a 26×26 dark rounded square.
-private struct EqualizerAvatar: View {
-    let status: SessionStatus
-    var body: some View {
-        EqualizerBars(status: status, barCount: 5, barWidth: 2.5, maxHeight: 12, spacing: 1.5)
-            .frame(width: 20, height: 20)
+        PixelGlyphView(sprite: sprite, pixelSize: 2, colorOverride: color)
+            .frame(width: 28, height: 22)
             .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 5))
     }
 }

@@ -18,7 +18,9 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate, @unchecked Sen
         let content = UNMutableNotificationContent()
         content.title = request.title
         content.body = request.body
-        content.sound = .default
+        // No system chime: the island plays its own 8-bit synth blip per event
+        // (see SoundSynthesizer, wired in AppModel.handle).
+        content.sound = nil
         content.userInfo = ["sessionId": request.sessionId]
         let req = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
         UNUserNotificationCenter.current().add(req, withCompletionHandler: nil)
@@ -28,7 +30,7 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate, @unchecked Sen
     func userNotificationCenter(_ center: UNUserNotificationCenter,
                                 willPresent notification: UNNotification,
                                 withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
-        completionHandler([.banner, .sound])
+        completionHandler([.banner])
     }
 
     // Handle clicks.

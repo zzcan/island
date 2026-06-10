@@ -14,7 +14,10 @@ public enum TranscriptParser {
                   let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                   (obj["type"] as? String) == "assistant",
                   let message = obj["message"] as? [String: Any] else { continue }
-            if let m = (message["model"] as? String), !m.isEmpty { model = m }
+            // Skip placeholder model ids like "<synthetic>" that Claude writes for
+            // assistant turns it didn't actually generate (interrupts, injected/local
+            // messages) — keep the last real model id instead.
+            if let m = (message["model"] as? String), !m.isEmpty, !m.hasPrefix("<") { model = m }
             guard let content = message["content"] as? [[String: Any]] else { continue }
             for block in content where (block["type"] as? String) == "text" {
                 if let t = (block["text"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines), !t.isEmpty {

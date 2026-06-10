@@ -17,6 +17,9 @@ mkdir -p "$APP/Contents/MacOS"
 cp "$BINDIR/island" "$APP/Contents/MacOS/island"
 cp "$BINDIR/vibe-hook" "$APP/Contents/MacOS/vibe-hook"
 
+mkdir -p "$APP/Contents/Resources"
+cp assets/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
+
 cat > "$APP/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -25,11 +28,13 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
   <key>CFBundleName</key><string>island</string>
   <key>CFBundleIdentifier</key><string>app.island.local</string>
   <key>CFBundleExecutable</key><string>island</string>
+  <key>CFBundleIconFile</key><string>AppIcon</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleShortVersionString</key><string>0.1.0</string>
   <key>CFBundleVersion</key><string>1</string>
   <key>LSMinimumSystemVersion</key><string>15.0</string>
   <key>LSUIElement</key><true/>
+  <key>NSAppleEventsUsageDescription</key><string>island controls terminal apps (iTerm2, Terminal) to jump to the right window and tab when you click a session.</string>
 </dict>
 </plist>
 PLIST

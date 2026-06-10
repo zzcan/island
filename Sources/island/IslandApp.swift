@@ -9,9 +9,19 @@ struct IslandApp: App {
         MenuBarExtra {
             MenuBarView().environmentObject(delegate.model)
         } label: {
-            Image(systemName: delegate.model.icon.symbolName)
+            MenuBarLabel(model: delegate.model)
         }
         .menuBarExtraStyle(.menu)
+    }
+}
+
+/// The menu-bar label: the status-coloured pixel crab. A view (not a bare Image) so
+/// it observes the model and re-renders the icon when the aggregate status changes.
+private struct MenuBarLabel: View {
+    @ObservedObject var model: AppModel
+    var body: some View {
+        Image(nsImage: MenuBarIcon.image(for: model.display.rows.map(\.status)))
+            .renderingMode(.original)
     }
 }
 

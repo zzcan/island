@@ -9,27 +9,38 @@ public struct HookMessage: Codable, Equatable, Sendable {
     public let message: String?
     public let cmux: CmuxContext?
     public let tmux: TmuxContext?
+    public let terminal: TerminalContext?
     public let prompt: String?
     public let action: String?
     public let assistantText: String?
     public let tasks: [TaskItem]?
     public let permissionMode: String?
     public let model: String?
+    // Interactive approval (permissionRequest) only:
+    public let requestId: String?   // correlates the reply back to the blocked hook
+    public let toolName: String?    // e.g. "ExitPlanMode"
+    public let plan: String?        // the plan markdown to review
 
     public init(event: IslandEvent, sessionId: String, cwd: String?, title: String?,
                 message: String?, cmux: CmuxContext?, tmux: TmuxContext?,
+                terminal: TerminalContext? = nil,
                 prompt: String? = nil, action: String? = nil,
                 assistantText: String? = nil, tasks: [TaskItem]? = nil,
-                permissionMode: String? = nil, model: String? = nil) {
+                permissionMode: String? = nil, model: String? = nil,
+                requestId: String? = nil, toolName: String? = nil, plan: String? = nil) {
         self.event = event; self.sessionId = sessionId; self.cwd = cwd; self.title = title
-        self.message = message; self.cmux = cmux; self.tmux = tmux; self.prompt = prompt
+        self.message = message; self.cmux = cmux; self.tmux = tmux; self.terminal = terminal
+        self.prompt = prompt
         self.action = action; self.assistantText = assistantText; self.tasks = tasks
         self.permissionMode = permissionMode; self.model = model
+        self.requestId = requestId; self.toolName = toolName; self.plan = plan
     }
 
-    /// Pure builder. `tmux` is passed in (the caller resolves it via a side-effecting CLI call)
-    /// to keep this function testable. Returns nil if the event is unsupported or sessionId missing.
+    /// Pure builder. `tmux`/`terminal` are passed in (the caller resolves them via
+    /// side-effecting CLI/tty calls) to keep this function testable. Returns nil if the
+    /// event is unsupported or sessionId missing.
     public static func build(stdin: Data, env: [String: String], tmux: TmuxContext?,
+                             terminal: TerminalContext? = nil,
                              assistantText: String? = nil, tasks: [TaskItem]? = nil,
                              model: String? = nil) -> HookMessage? {
         guard let input = try? ClaudeHookInput.decode(stdin) else { return nil }
@@ -55,7 +66,8 @@ public struct HookMessage: Codable, Equatable, Sendable {
         }
 
         return HookMessage(event: event, sessionId: sid, cwd: input.cwd, title: title,
-                           message: input.message, cmux: cmux, tmux: tmux, prompt: input.prompt,
+                           message: input.message, cmux: cmux, tmux: tmux, terminal: terminal,
+                           prompt: input.prompt,
                            action: action, assistantText: assistantText, tasks: tasks,
                            permissionMode: input.permission_mode, model: model)
     }

@@ -11,6 +11,7 @@ public struct Session: Equatable, Identifiable, Sendable {
     public var status: SessionStatus
     public var cmux: CmuxContext?
     public var tmux: TmuxContext?
+    public var terminal: TerminalContext?
     public var lastActivity: Date
     public var lastPrompt: String?
     public var lastAction: String?
@@ -20,12 +21,14 @@ public struct Session: Equatable, Identifiable, Sendable {
     public var model: String?
 
     public init(id: String, title: String, cwd: String?, status: SessionStatus,
-                cmux: CmuxContext?, tmux: TmuxContext?, lastActivity: Date,
+                cmux: CmuxContext?, tmux: TmuxContext?, terminal: TerminalContext? = nil,
+                lastActivity: Date,
                 lastPrompt: String? = nil, lastAction: String? = nil,
                 lastAssistant: String? = nil, tasks: [TaskItem] = [],
                 permissionMode: String? = nil, model: String? = nil) {
         self.id = id; self.title = title; self.cwd = cwd; self.status = status
-        self.cmux = cmux; self.tmux = tmux; self.lastActivity = lastActivity
+        self.cmux = cmux; self.tmux = tmux; self.terminal = terminal
+        self.lastActivity = lastActivity
         self.lastPrompt = lastPrompt; self.lastAction = lastAction
         self.lastAssistant = lastAssistant; self.tasks = tasks
         self.permissionMode = permissionMode; self.model = model
