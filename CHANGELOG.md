@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.3](https://github.com/zzcan/island/compare/v0.1.2...v0.1.3) (2026-06-11)
+
+
+### Features
+
+* **app:** Sparkle auto-updates ([97842bb](https://github.com/zzcan/island/commit/97842bb850f8f7201ccb29404b64d99cc3f79d31))
+
 ## [0.1.2](https://github.com/zzcan/island/compare/v0.1.1...v0.1.2) (2026-06-11)
 
 
