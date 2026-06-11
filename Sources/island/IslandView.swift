@@ -183,20 +183,38 @@ struct IslandView: View {
             }
             VStack(spacing: 0) {
                 ForEach(Array(model.display.rows.enumerated()), id: \.element.id) { idx, row in
-                    Button { if settings.clickToJump { model.jump(sessionId: row.id) } } label: { rowView(row: row, now: now) }
-                        .buttonStyle(.plain)
-                        // Hover highlight: subtle background while the cursor is over the row.
-                        .background(hoveredRow == row.id ? Color.white.opacity(0.07) : Color.clear)
-                        .animation(.easeOut(duration: 0.12), value: hoveredRow)
-                        .onHover { inside in
-                            if inside { hoveredRow = row.id }
-                            else if hoveredRow == row.id { hoveredRow = nil }
+                    ZStack(alignment: .topTrailing) {
+                        Button { if settings.clickToJump { model.jump(sessionId: row.id) } } label: { rowView(row: row, now: now) }
+                            .buttonStyle(.plain)
+                        // Clear control: appears over the elapsed-time slot on hover,
+                        // removes the session from the panel without triggering jump
+                        // (it's a sibling button on top of the row's tap target).
+                        if hoveredRow == row.id {
+                            Button { model.dismiss(sessionId: row.id) } label: {
+                                Image(systemName: "trash")
+                                    .font(fs(12))
+                                    .foregroundStyle(.secondary)
+                                    .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .help("从面板清除该会话")
+                            .padding(.top, 6)
+                            .padding(.trailing, 8)
+                            .transition(.opacity)
                         }
-                        // Staggered cascade: each row fades + slides in slightly after
-                        // the previous one, once the box has begun expanding.
-                        .opacity(rowsIn ? 1 : 0)
-                        .offset(y: rowsIn ? 0 : -4)
-                        .animation(.easeOut(duration: 0.24).delay(Double(idx) * 0.04), value: rowsIn)
+                    }
+                    // Hover highlight: subtle background while the cursor is over the row.
+                    .background(hoveredRow == row.id ? Color.white.opacity(0.07) : Color.clear)
+                    .animation(.easeOut(duration: 0.12), value: hoveredRow)
+                    .onHover { inside in
+                        if inside { hoveredRow = row.id }
+                        else if hoveredRow == row.id { hoveredRow = nil }
+                    }
+                    // Staggered cascade: each row fades + slides in slightly after
+                    // the previous one, once the box has begun expanding.
+                    .opacity(rowsIn ? 1 : 0)
+                    .offset(y: rowsIn ? 0 : -4)
+                    .animation(.easeOut(duration: 0.24).delay(Double(idx) * 0.04), value: rowsIn)
                 }
             }
             .padding(.vertical, 4)
@@ -265,6 +283,8 @@ struct IslandView: View {
                     Text(elapsedString(from: row.lastActivity, to: now))
                         .font(fs(11))
                         .foregroundStyle(.secondary)
+                        // Hidden while hovered so the clear icon shows in its place.
+                        .opacity(hoveredRow == row.id ? 0 : 1)
                 }
                 // Line 2: prompt
                 Text("你：" + (row.prompt ?? "—"))

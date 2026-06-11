@@ -79,6 +79,12 @@ public final class SessionStore {
         }
     }
 
+    /// Remove a single session (user dismissed it from the panel). It reappears only if
+    /// that session emits another hook event.
+    public func remove(_ id: String) {
+        sessions[id] = nil
+    }
+
     public func clearAll() {
         sessions.removeAll()
     }

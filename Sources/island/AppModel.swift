@@ -160,6 +160,13 @@ final class AppModel: ObservableObject {
         jumper.jump(to: session)
     }
 
+    /// Remove a session from the panel (user clicked the clear icon). Transient — it
+    /// returns if the session emits another event; done/idle ones stay gone.
+    func dismiss(sessionId: String) {
+        store.remove(sessionId)
+        refresh()
+    }
+
     private func refresh() {
         let visible = visibleSessions()
         sessions = visible.sorted { $0.lastActivity > $1.lastActivity }
