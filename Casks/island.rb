@@ -1,6 +1,6 @@
 cask "island" do
-  version "0.1.0"
-  sha256 "9b8e9226b212ae8d6561ad382c72abbae36ce77174ed29e82bd6c09be9dcc105"
+  version "0.1.1"
+  sha256 "3fb2478e4de34783996998d9ee252e7148ef34a1d5c75c29d7beccb9261cd6f1"
 
   url "https://github.com/zzcan/island/releases/download/v#{version}/island.app.zip"
   name "island"
