@@ -32,11 +32,13 @@ Claude Code 会话状态。哪个会话在干活、哪个在等你输入、哪�
 
 ```bash
 brew trust zzcan/island   # 新版 Homebrew 要求先信任第三方 tap
-brew install --cask --no-quarantine zzcan/island/island
+brew install --cask zzcan/island/island
+xattr -dr com.apple.quarantine /Applications/island.app
 ```
 
-> `--no-quarantine` 是必需的:island 目前是 ad-hoc 签名(没有 Apple 开发者证书),带隔离
-> 标记安装会被 Gatekeeper 拦下。升级用 `brew upgrade --cask island`。
+> `xattr` 这步是必需的:island 目前是 ad-hoc 签名(没有 Apple 开发者证书),不清除隔离
+> 标记会被 Gatekeeper 拦下(Homebrew 5 已移除 `--no-quarantine` flag)。升级用
+> `brew upgrade --cask island`,升级后需再清一次隔离标记。
 
 ### 直接下载
 
