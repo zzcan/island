@@ -1,0 +1,42 @@
+name: release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+    steps:
+      - id: release
+        uses: googleapis/release-please-action@v4
+
+  # When release-please cuts a release, build the app bundle and attach it.
+  upload-app:
+    needs: release-please
+    if: needs.release-please.outputs.release_created == 'true'
+    runs-on: macos-15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # bundle.sh derives the version via `git describe`
+
+      - name: Build app bundle
+        run: SWIFT=swift ./Scripts/bundle.sh
+
+      - name: Zip app
+        run: ditto -c -k --keepParent build/island.app island.app.zip
+
+      - name: Upload to release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload '${{ needs.release-please.outputs.tag_name }}' island.app.zip
