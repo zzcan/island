@@ -31,6 +31,7 @@ Claude Code 会话状态。哪个会话在干活、哪个在等你输入、哪�
 ### Homebrew(推荐)
 
 ```bash
+brew trust zzcan/island   # 新版 Homebrew 要求先信任第三方 tap
 brew install --cask --no-quarantine zzcan/island/island
 ```
 
