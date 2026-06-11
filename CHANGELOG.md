@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.2](https://github.com/zzcan/island/compare/v0.1.1...v0.1.2) (2026-06-11)
+
+
+### Features
+
+* **app:** auto-register Claude Code hooks on launch ([deab0a9](https://github.com/zzcan/island/commit/deab0a9ea58e05ae1ebd2339ff11798a8ea3c205))
+* **dist:** move Homebrew cask to zzcan/homebrew-island tap ([9aae57a](https://github.com/zzcan/island/commit/9aae57a31ca42d79b42a9fb659e3e7ab553be5ed))
+
 ## [0.1.1](https://github.com/zzcan/island/compare/v0.1.0...v0.1.1) (2026-06-11)
 
 
