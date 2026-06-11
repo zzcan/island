@@ -2,6 +2,7 @@
 
 [![release](https://img.shields.io/github/v/release/zzcan/island)](https://github.com/zzcan/island/releases/latest)
 ![platform](https://img.shields.io/badge/platform-macOS%2015%2B-blue)
+[![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 把 Mac 刘海变成 Claude Code 的「灵动岛」:一个常驻屏幕顶部的悬浮胶囊,聚合所有正在运行的
 Claude Code 会话状态。哪个会话在干活、哪个在等你输入、哪个已经完成,一眼看清;点一下直接跳回
@@ -153,3 +154,7 @@ GitHub Release、CI 构建并上传 `island.app.zip`、同步更新
 
 灵感来自 [Vibe Island](https://vibeisland.app)。island 是一个面向 Claude Code + 本机终端
 工作流的精简独立实现,静态分析笔记见 [docs/vibe-island-teardown.md](docs/vibe-island-teardown.md)。
+
+## License
+
+[MIT](LICENSE)
