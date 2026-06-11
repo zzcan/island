@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.1](https://github.com/zzcan/island/compare/v0.1.0...v0.1.1) (2026-06-11)
+
+
+### Features
+
+* **dist:** distribute via Homebrew cask, auto-bumped on each release ([e9e9d70](https://github.com/zzcan/island/commit/e9e9d70ac17b6a8fba59c0b841908bfd06b5e1b2))
+
 ## 0.1.0 (2026-06-11)
 
 
