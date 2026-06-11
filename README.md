@@ -139,7 +139,6 @@ swift test                 # 跑测试
 | `Sources/island` | app 本体:悬浮窗、SwiftUI 视图、socket server、跳转执行、设置 |
 | `Sources/vibe-hook` | Claude Code hook 端二进制 |
 | `Scripts/` | 打包、hook 安装脚本 |
-| `docs/` | 设计文档与参考资料 |
 
 ### 发布流程
 
@@ -149,11 +148,6 @@ main,机器人维护一个累积 changelog 的 Release PR;合并该 PR 即发版
 GitHub Release、CI 构建并上传 `island.app.zip`、同步更新
 [Homebrew tap](https://github.com/zzcan/homebrew-island)。版本号在打包时由 `git describe`
 注入,源码里没有硬编码。
-
-## 致谢
-
-灵感来自 [Vibe Island](https://vibeisland.app)。island 是一个面向 Claude Code + 本机终端
-工作流的精简独立实现,静态分析笔记见 [docs/vibe-island-teardown.md](docs/vibe-island-teardown.md)。
 
 ## License
 
