@@ -24,6 +24,7 @@ struct MenuBarView: View {
             }
         }
         Divider()
+        Button("检查更新…") { UpdaterManager.shared.checkForUpdates() }
         Button("设置…") { model.openSettings() }
         Button("退出") { NSApplication.shared.terminate(nil) }
     }

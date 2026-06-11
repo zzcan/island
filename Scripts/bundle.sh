@@ -26,6 +26,15 @@ cp "$BINDIR/vibe-hook" "$APP/Contents/MacOS/vibe-hook"
 mkdir -p "$APP/Contents/Resources"
 cp assets/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 
+# Embed Sparkle.framework (SPM links it against @rpath; rpath set in Package.swift).
+SPARKLE_FW="$(find .build/artifacts -type d -name "Sparkle.framework" -path "*macos*" | head -1)"
+if [[ -z "$SPARKLE_FW" ]]; then
+  echo "Sparkle.framework not found under .build/artifacts" >&2
+  exit 1
+fi
+mkdir -p "$APP/Contents/Frameworks"
+cp -R "$SPARKLE_FW" "$APP/Contents/Frameworks/"
+
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -41,6 +50,9 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>LSMinimumSystemVersion</key><string>15.0</string>
   <key>LSUIElement</key><true/>
   <key>NSAppleEventsUsageDescription</key><string>island controls terminal apps (iTerm2, Terminal) to jump to the right window and tab when you click a session.</string>
+  <key>SUFeedURL</key><string>https://github.com/zzcan/island/releases/latest/download/appcast.xml</string>
+  <key>SUPublicEDKey</key><string>6smchAR5z0Cu63KD3j7Vgw1eDvqwIBy6QMrb33L1fYI=</string>
+  <key>SUEnableAutomaticChecks</key><true/>
 </dict>
 </plist>
 PLIST

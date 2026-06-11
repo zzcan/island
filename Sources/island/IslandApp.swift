@@ -32,6 +32,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         HookSync.sync(planReview: Settings.shared.planReviewEnabled)
+        UpdaterManager.shared.start()
         model.start()
         let panel = FloatingIslandPanel(appModel: model)
         panel.show()

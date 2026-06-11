@@ -36,10 +36,29 @@ jobs:
       - name: Zip app
         run: ditto -c -k --keepParent build/island.app island.app.zip
 
+      # Signed appcast for Sparkle auto-updates. SUFeedURL points at
+      # releases/latest/download/appcast.xml, so each release ships its own feed.
+      - name: Generate appcast
+        env:
+          SPARKLE_ED_PRIVATE_KEY: ${{ secrets.SPARKLE_ED_PRIVATE_KEY }}
+          TAG: ${{ needs.release-please.outputs.tag_name }}
+        run: |
+          curl -fsSL -o /tmp/sparkle.tar.xz https://github.com/sparkle-project/Sparkle/releases/download/2.8.1/Sparkle-2.8.1.tar.xz
+          mkdir /tmp/sparkle-tools && tar -xJf /tmp/sparkle.tar.xz -C /tmp/sparkle-tools
+          mkdir /tmp/appcast && cp island.app.zip /tmp/appcast/
+          printf '%s' "$SPARKLE_ED_PRIVATE_KEY" > /tmp/ed_key
+          /tmp/sparkle-tools/bin/generate_appcast \
+            --ed-key-file /tmp/ed_key \
+            --download-url-prefix "https://github.com/zzcan/island/releases/download/${TAG}/" \
+            --link "https://github.com/zzcan/island" \
+            /tmp/appcast
+          rm -f /tmp/ed_key
+          cp /tmp/appcast/appcast.xml .
+
       - name: Upload to release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload '${{ needs.release-please.outputs.tag_name }}' island.app.zip
+        run: gh release upload '${{ needs.release-please.outputs.tag_name }}' island.app.zip appcast.xml
 
   # Point the Homebrew tap (zzcan/homebrew-island) at the release that was
   # just published. Auth via a write deploy key stored as TAP_DEPLOY_KEY.
