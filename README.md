@@ -58,33 +58,16 @@ git clone https://github.com/zzcan/island.git && cd island
 
 ## 接入 Claude Code
 
-island 通过 Claude Code 的 [hooks](https://docs.anthropic.com/en/docs/claude-code/hooks) 获取
-会话事件。app 内附带一个 `vibe-hook` 二进制,需要把它注册到 `~/.claude/settings.json`。
+零配置。island 启动时会自动把随包附带的 `vibe-hook` 注册进 `~/.claude/settings.json`
+(`SessionStart` / `UserPromptSubmit` / `Notification` / `Stop` / `SessionEnd` /
+`PostToolUse` 六个事件),并在每次启动时自检自愈:app 挪了位置、从源码构建换成 Homebrew
+安装,旧路径的残留条目都会被替换成当前路径。注册是幂等的,只动属于 island 的条目,改写前
+会留 `settings.json.island.bak` 备份。
 
-**源码构建的用户**,直接跑脚本(幂等,自动备份原配置):
+启动 island 后新开一个 Claude Code 会话,胶囊里就会出现它。
 
-```bash
-./Scripts/install-hooks.sh
-```
-
-**Homebrew / 下载安装的用户**,手动把下面的 hook 命令注册到这些事件上:`SessionStart`、
-`UserPromptSubmit`、`Notification`、`Stop`、`SessionEnd`、`PostToolUse`(每个事件都挂同
-一条命令):
-
-```json
-{
-  "hooks": {
-    "SessionStart": [
-      { "hooks": [{ "type": "command", "command": "/Applications/island.app/Contents/MacOS/vibe-hook" }] }
-    ]
-  }
-}
-```
-
-配置完成后启动 island,新开一个 Claude Code 会话,胶囊里就会出现它。
-
-> 计划审查功能还需要把 `vibe-hook` 额外注册到 `PermissionRequest` 事件,并在设置中打开
-> 「计划审查」。关闭或岛未响应时,自动回落到 Claude 自己的终端确认,不会卡住会话。
+> 计划审查的 `PermissionRequest` 事件跟随设置中的「计划审查」开关:打开即注册、关闭即摘除
+> (对新会话生效)。岛未响应时自动回落到 Claude 自己的终端确认,不会卡住会话。
 
 ## 工作原理
 

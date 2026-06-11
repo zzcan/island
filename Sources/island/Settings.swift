@@ -51,7 +51,12 @@ final class Settings: ObservableObject {
     @Published var clickToJump: Bool { didSet { persist(clickToJump, K.clickToJump) } }
     /// Intercept ExitPlanMode and review plans in the island. When off, plan approval
     /// falls back to Claude's own terminal prompt.
-    @Published var planReviewEnabled: Bool { didSet { persist(planReviewEnabled, K.planReviewEnabled) } }
+    @Published var planReviewEnabled: Bool {
+        didSet {
+            persist(planReviewEnabled, K.planReviewEnabled)
+            HookSync.sync(planReview: planReviewEnabled)
+        }
+    }
     /// Minutes a done/idle session lingers before it's pruned as residual.
     @Published var sessionRetentionMinutes: Double { didSet { persist(sessionRetentionMinutes, K.retention) } }
 
