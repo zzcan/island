@@ -101,7 +101,17 @@ struct SettingsView: View {
 
         case .behavior:
             Section {
+                Picker("事件自动展开", selection: $settings.autoExpandMode) {
+                    Text("所有事件").tag(0)
+                    Text("仅需操作的事件").tag(1)
+                    Text("从不").tag(2)
+                }
+                Text(settings.autoExpandMode == 2
+                     ? "事件不再自动弹开面板；仍可悬停展开，计划审阅仍会弹出。"
+                     : "「仅需操作」= 需要审批与计划审阅时弹开；任务完成不弹。")
+                    .font(.caption).foregroundStyle(.secondary)
                 sliderRow("自动收起停留", value: $settings.autoCollapseDwell, range: 1...10, unit: "s")
+                    .disabled(settings.autoExpandMode == 2)
                 Toggle("点击会话跳转到终端", isOn: $settings.clickToJump)
                 Toggle("在灵动岛内审阅计划（Plan）", isOn: $settings.planReviewEnabled)
                 Text("关闭后，计划批准回到 Claude 终端原生提示。")
