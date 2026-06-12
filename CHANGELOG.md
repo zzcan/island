@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.1.4](https://github.com/zzcan/island/compare/v0.1.3...v0.1.4) (2026-06-12)
+
+
+### Features
+
+* **app:** auto-expand mode picker in behaviour settings ([f4d0e11](https://github.com/zzcan/island/commit/f4d0e11083fea61221be36c92f6725c840de68ee))
+* **app:** gate event auto-expand behind AutoExpandMode setting ([ae068c0](https://github.com/zzcan/island/commit/ae068c0f7eef7b7c2b6ac48377e371b4e6516690))
+* **core:** AutoExpandMode policy enum ([18dc67c](https://github.com/zzcan/island/commit/18dc67c1f2a1b00bd25af089acb0cf1d1ed100a5))
+
 ## [0.1.3](https://github.com/zzcan/island/compare/v0.1.2...v0.1.3) (2026-06-11)
 
 
