@@ -103,11 +103,15 @@ final class AppModel: ObservableObject {
             if msg.event == .sessionStart, s.soundSessionStart { synth.play(.sessionStart) }
         }
         if let request {
-            eventTick &+= 1
+            let status = store.sessions[request.sessionId]?.status
+            let mode = AutoExpandMode(rawValue: s.autoExpandMode) ?? .all
+            // Missing session is treated as needsInput: expands unless mode is .never,
+            // closest to the old unconditional flash.
+            if mode.shouldExpand(for: status ?? .needsInput) { eventTick &+= 1 }
             if s.notificationsEnabled { notifier.post(request) }
             // Per-event 8-bit blip, chosen by the session's resulting status — each
             // category individually toggleable in Settings.
-            if soundOn, let status = store.sessions[request.sessionId]?.status {
+            if soundOn, let status {
                 switch status {
                 case .needsInput: if s.soundInputRequired { synth.play(.needsInput) }
                 case .done:       if s.soundTaskComplete { synth.play(.done) }
@@ -132,8 +136,10 @@ final class AppModel: ObservableObject {
         planQueue.append(req)
         if pendingPlan == nil { pendingPlan = req }
 
-        eventTick &+= 1
         let s = Settings.shared
+        if (AutoExpandMode(rawValue: s.autoExpandMode) ?? .all).expandsForPlanReview {
+            eventTick &+= 1
+        }
         if s.notificationsEnabled {
             notifier.post(NotificationRequest(sessionId: msg.sessionId, title: req.title,
                                               body: "计划待审阅"))
