@@ -37,6 +37,8 @@ final class Settings: ObservableObject {
     @Published var quietEnd: Int { didSet { persist(quietEnd, K.quietEnd) } }
 
     // MARK: Behaviour
+    /// AutoExpandMode rawValue: 0 all events, 1 actionable only, 2 never.
+    @Published var autoExpandMode: Int { didSet { persist(autoExpandMode, K.autoExpandMode) } }
     /// Seconds an event-driven auto-expansion stays open before retracting.
     @Published var autoCollapseDwell: Double { didSet { persist(autoCollapseDwell, K.dwell) } }
 
@@ -85,6 +87,7 @@ final class Settings: ObservableObject {
         static let quietEnabled = "s.quietEnabled"
         static let quietStart = "s.quietStart"
         static let quietEnd = "s.quietEnd"
+        static let autoExpandMode = "s.autoExpandMode"
         static let dwell = "s.autoCollapseDwell"
         static let cwdFilters = "s.cwdFilters"
         static let promptFilters = "s.promptFilters"
@@ -112,6 +115,7 @@ final class Settings: ObservableObject {
         quietHoursEnabled = d.object(forKey: K.quietEnabled) as? Bool ?? false
         quietStart = d.object(forKey: K.quietStart) as? Int ?? 22 * 60   // 22:00
         quietEnd = d.object(forKey: K.quietEnd) as? Int ?? 8 * 60        // 08:00
+        autoExpandMode = d.object(forKey: K.autoExpandMode) as? Int ?? 0
         autoCollapseDwell = d.object(forKey: K.dwell) as? Double ?? 3
         cwdFilters = d.stringArray(forKey: K.cwdFilters) ?? []
         promptFilters = d.stringArray(forKey: K.promptFilters) ?? []
@@ -133,7 +137,7 @@ final class Settings: ObservableObject {
         quietHoursEnabled = false; quietStart = 22 * 60; quietEnd = 8 * 60
         activationPad = 0; collapsedWidth = 246; expandedWidth = 560; topOffset = 0
         displayChoice = 0
-        autoCollapseDwell = 3
+        autoCollapseDwell = 3; autoExpandMode = 0
         cwdFilters = []; promptFilters = []
         notificationsEnabled = true; clickToJump = true; planReviewEnabled = false
         sessionRetentionMinutes = 30
