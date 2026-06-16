@@ -24,7 +24,6 @@ final class SoundSynthesizer {
     private let engine = AVAudioEngine()
     private let player = AVAudioPlayerNode()
     private let format = AVAudioFormat(standardFormatWithSampleRate: 44_100, channels: 1)!
-    private var ready = false
 
     /// Master on/off — gated by Settings in AppModel; kept as a belt-and-braces flag.
     var enabled = true
@@ -34,15 +33,25 @@ final class SoundSynthesizer {
     init() {
         engine.attach(player)
         engine.connect(player, to: engine.mainMixerNode, format: format)
+        // AVAudioEngine stops itself on any audio-config change — sleep/wake, or an
+        // output device / route switch (headphones, Bluetooth, external display).
+        // Force it fully stopped here so the next play() re-starts it lazily; without
+        // this, every later play() would schedule silently into a dead engine.
+        NotificationCenter.default.addObserver(
+            forName: .AVAudioEngineConfigurationChange, object: engine, queue: nil
+        ) { [weak self] _ in
+            Task { @MainActor in self?.engine.stop() }
+        }
     }
 
-    /// Lazily start the engine on first use so launch doesn't grab the audio HW.
+    /// Start the engine on demand. Keyed on `engine.isRunning` rather than a one-shot
+    /// flag, so it lazily starts on first use *and* recovers after the engine was
+    /// stopped by an audio-config change.
     private func ensureRunning() {
-        guard !ready else { return }
+        guard !engine.isRunning else { return }
         do {
             try engine.start()
             player.play()
-            ready = true
         } catch {
             NSLog("island: audio engine start failed: \(error)")
         }
@@ -51,7 +60,7 @@ final class SoundSynthesizer {
     func play(_ sound: Sound) {
         guard enabled else { return }
         ensureRunning()
-        guard ready, let buffer = render(sound) else { return }
+        guard engine.isRunning, let buffer = render(sound) else { return }
         player.scheduleBuffer(buffer, at: nil, options: [], completionHandler: nil)
     }
 
@@ -60,7 +69,7 @@ final class SoundSynthesizer {
     func preview(_ sound: Sound) {
         masterVolume = Float(Settings.shared.soundVolume)
         ensureRunning()
-        guard ready, let buffer = render(sound) else { return }
+        guard engine.isRunning, let buffer = render(sound) else { return }
         player.scheduleBuffer(buffer, at: nil, options: [], completionHandler: nil)
     }
 
