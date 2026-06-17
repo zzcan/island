@@ -18,6 +18,7 @@ final class AppModel: ObservableObject {
 
     private let store = SessionStore()
     private let notifier = Notifier()
+    private let bark = BarkNotifier()
     private let jumper = Jumper()
     private let synth = SoundSynthesizer.shared
     private lazy var settingsController = SettingsWindowController()
@@ -85,6 +86,21 @@ final class AppModel: ObservableObject {
         }
     }
 
+    /// Bark 通知分组：取会话 cwd 的末段目录名，没有则回退 sessionId。
+    private func barkGroup(_ sessionId: String) -> String {
+        if let cwd = store.sessions[sessionId]?.cwd, !cwd.isEmpty {
+            let name = (cwd as NSString).lastPathComponent
+            if !name.isEmpty { return name }
+        }
+        return sessionId
+    }
+
+    /// Bark 通知正文：会话标题 + 消息，截断到约 120 字。
+    private func barkBody(_ r: NotificationRequest) -> String {
+        let combined = r.body.isEmpty ? r.title : "\(r.title)：\(r.body)"
+        return String(combined.prefix(120))
+    }
+
     private func pruneStale() {
         let before = store.sessions.count
         store.prune(olderThan: Settings.shared.sessionRetentionMinutes * 60, now: Date())
@@ -118,6 +134,17 @@ final class AppModel: ObservableObject {
                 case .working, .idle: break
                 }
             }
+            if s.barkEnabled, !s.isQuietNow(), let status {
+                switch status {
+                case .needsInput:
+                    bark.send(title: "需要输入", body: barkBody(request),
+                              group: barkGroup(request.sessionId), level: .timeSensitive)
+                case .done:
+                    bark.send(title: "已完成", body: barkBody(request),
+                              group: barkGroup(request.sessionId), level: .active)
+                case .working, .idle: break
+                }
+            }
         }
     }
 
@@ -146,6 +173,10 @@ final class AppModel: ObservableObject {
         }
         if s.soundEnabled, !s.isQuietNow(), s.soundInputRequired {
             synth.masterVolume = Float(s.soundVolume); synth.play(.needsInput)
+        }
+        if s.barkEnabled, !s.isQuietNow() {
+            bark.send(title: "需要审批", body: "\(req.title)：计划待审阅",
+                      group: barkGroup(req.sessionId), level: .timeSensitive)
         }
     }
 
