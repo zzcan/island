@@ -8,6 +8,7 @@ struct SettingsView: View {
     @ObservedObject private var settings = Settings.shared
     @State private var selection: SettingsCategory = .general
     @State private var showReset = false
+    @State private var barkTestResult: String?
 
     var body: some View {
         NavigationSplitView {
@@ -59,6 +60,22 @@ struct SettingsView: View {
                     DatePicker("结束", selection: timeBinding($settings.quietEnd), displayedComponents: .hourAndMinute)
                 }
                 .disabled(!settings.quietHoursEnabled)
+            }
+
+        case .remotePush:
+            Section("Bark 推送") {
+                Toggle("启用 Bark 推送", isOn: $settings.barkEnabled)
+                TextField("服务器", text: $settings.barkServer,
+                          prompt: Text("https://api.day.app"))
+                TextField("Device Key", text: $settings.barkDeviceKey)
+                LabeledContent("测试") {
+                    Button("测试推送") { testBark() }
+                }
+                if let r = barkTestResult {
+                    Text(r).font(.caption).foregroundStyle(.secondary)
+                }
+                Text("人不在 Mac 前时，会话需要输入 / 完成 / 计划待审阅会推到 iPhone 的 Bark。只读，不受系统通知开关影响；遵守静音时段。")
+                    .font(.caption).foregroundStyle(.secondary)
             }
 
         case .appearance:
@@ -167,6 +184,13 @@ struct SettingsView: View {
         )
     }
 
+    private func testBark() {
+        barkTestResult = "发送中…"
+        BarkNotifier().test { ok in
+            barkTestResult = ok ? "已发送 ✓" : "发送失败，检查 key / 网络"
+        }
+    }
+
     /// A per-event sound row: enable toggle (greyed when sound off) + a 试听 preview.
     @ViewBuilder
     private func soundRow(_ title: String, isOn: Binding<Bool>, sound: SoundSynthesizer.Sound) -> some View {
@@ -205,12 +229,13 @@ struct SettingsView: View {
 // MARK: - Category model
 
 private enum SettingsCategory: String, CaseIterable, Identifiable {
-    case general, sound, appearance, island, display, behavior, filters, about
+    case general, sound, remotePush, appearance, island, display, behavior, filters, about
     var id: String { rawValue }
     var title: String {
         switch self {
         case .general: return "通用"
         case .sound: return "声音"
+        case .remotePush: return "远程推送"
         case .appearance: return "外观"
         case .island: return "灵动岛"
         case .display: return "显示器"
@@ -223,6 +248,7 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
         switch self {
         case .general: return "gearshape.fill"
         case .sound: return "speaker.wave.2.fill"
+        case .remotePush: return "bell.badge.fill"
         case .appearance: return "paintbrush.fill"
         case .island: return "capsule.fill"
         case .display: return "display"
@@ -235,6 +261,7 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
         switch self {
         case .general: return .gray
         case .sound: return .green
+        case .remotePush: return .purple
         case .appearance: return .pink
         case .island: return .indigo
         case .display: return .blue
