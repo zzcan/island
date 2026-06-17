@@ -175,7 +175,9 @@ final class AppModel: ObservableObject {
             synth.masterVolume = Float(s.soundVolume); synth.play(.needsInput)
         }
         if s.barkEnabled, !s.isQuietNow() {
-            bark.send(title: "需要审批", body: "\(req.title)：计划待审阅",
+            let body = barkBody(NotificationRequest(sessionId: req.sessionId,
+                                                    title: req.title, body: "计划待审阅"))
+            bark.send(title: "需要审批", body: body,
                       group: barkGroup(req.sessionId), level: .timeSensitive)
         }
     }
