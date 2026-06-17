@@ -49,6 +49,14 @@ final class Settings: ObservableObject {
     // MARK: Notifications / interaction
     /// Post macOS banner notifications on needs-input / done.
     @Published var notificationsEnabled: Bool { didSet { persist(notificationsEnabled, K.notificationsEnabled) } }
+
+    // MARK: Remote push (Bark)
+    /// 启用向 iPhone Bark 的远程推送（needs-input / done / plan review）。
+    @Published var barkEnabled: Bool { didSet { persist(barkEnabled, K.barkEnabled) } }
+    /// Bark 服务器，默认官方 https://api.day.app，支持自建。
+    @Published var barkServer: String { didSet { persist(barkServer, K.barkServer) } }
+    /// Bark device key（iPhone app 首页那串）。
+    @Published var barkDeviceKey: String { didSet { persist(barkDeviceKey, K.barkDeviceKey) } }
     /// Clicking a session row jumps to its terminal/IDE.
     @Published var clickToJump: Bool { didSet { persist(clickToJump, K.clickToJump) } }
     /// Intercept ExitPlanMode and review plans in the island. When off, plan approval
@@ -92,6 +100,9 @@ final class Settings: ObservableObject {
         static let cwdFilters = "s.cwdFilters"
         static let promptFilters = "s.promptFilters"
         static let notificationsEnabled = "s.notificationsEnabled"
+        static let barkEnabled = "s.bark.enabled"
+        static let barkServer = "s.bark.server"
+        static let barkDeviceKey = "s.bark.deviceKey"
         static let clickToJump = "s.clickToJump"
         static let planReviewEnabled = "s.planReviewEnabled"
         static let retention = "s.sessionRetentionMinutes"
@@ -120,6 +131,9 @@ final class Settings: ObservableObject {
         cwdFilters = d.stringArray(forKey: K.cwdFilters) ?? []
         promptFilters = d.stringArray(forKey: K.promptFilters) ?? []
         notificationsEnabled = d.object(forKey: K.notificationsEnabled) as? Bool ?? true
+        barkEnabled = d.object(forKey: K.barkEnabled) as? Bool ?? false
+        barkServer = d.object(forKey: K.barkServer) as? String ?? "https://api.day.app"
+        barkDeviceKey = d.object(forKey: K.barkDeviceKey) as? String ?? ""
         clickToJump = d.object(forKey: K.clickToJump) as? Bool ?? true
         planReviewEnabled = d.object(forKey: K.planReviewEnabled) as? Bool ?? false
         sessionRetentionMinutes = d.object(forKey: K.retention) as? Double ?? 30
@@ -140,6 +154,7 @@ final class Settings: ObservableObject {
         autoCollapseDwell = 3; autoExpandMode = 0
         cwdFilters = []; promptFilters = []
         notificationsEnabled = true; clickToJump = true; planReviewEnabled = false
+        barkEnabled = false; barkServer = "https://api.day.app"; barkDeviceKey = ""
         sessionRetentionMinutes = 30
         fontScale = 1.0; spriteTheme = 0; colorMode = 0
     }
