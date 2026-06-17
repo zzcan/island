@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.6](https://github.com/zzcan/island/compare/v0.1.5...v0.1.6) (2026-06-17)
+
+
+### Features
+
+* **app:** Bark remote-push settings UI with test button ([c8da11b](https://github.com/zzcan/island/commit/c8da11b0368770f21486af842ded6588210db684))
+* **app:** Bark 远程推送 (iPhone 通知) ([0a256f3](https://github.com/zzcan/island/commit/0a256f3f87842ccce9417204434a929ea2c13f9a))
+* **app:** BarkNotifier URLSession sender ([ccd00ce](https://github.com/zzcan/island/commit/ccd00ce8bb7170891bd2f163859d541504313aab))
+* **app:** persist Bark remote-push settings ([50a8943](https://github.com/zzcan/island/commit/50a8943dd0194f859b3d28ce785b10166f67f397))
+* **app:** push Bark notifications on session status changes ([ff531cd](https://github.com/zzcan/island/commit/ff531cd51b2ae30d4df9bce3d0cdc79b2a6702ff))
+* **core:** BarkRequest builder for remote push ([d31ef85](https://github.com/zzcan/island/commit/d31ef85f539e91ae8c9a0f2e420503c4c159e6ca))
+
 ## [0.1.5](https://github.com/zzcan/island/compare/v0.1.4...v0.1.5) (2026-06-16)
 
 
