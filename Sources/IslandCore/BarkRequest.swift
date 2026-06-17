@@ -18,16 +18,17 @@ public enum BarkRequest {
         level: BarkLevel
     ) -> URLRequest? {
         let key = deviceKey.trimmingCharacters(in: .whitespacesAndNewlines)
-        let t = title.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !key.isEmpty, !t.isEmpty else { return nil }
+        let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !key.isEmpty, !trimmedTitle.isEmpty else { return nil }
 
         let base = server.trimmingCharacters(in: .whitespacesAndNewlines)
         let root = base.isEmpty ? "https://api.day.app" : base
-        let trimmed = root.hasSuffix("/") ? String(root.dropLast()) : root
+        // Strip any number of trailing slashes so "host//" doesn't yield "host//push".
+        let trimmed = String(root.reversed().drop(while: { $0 == "/" }).reversed())
         guard let url = URL(string: trimmed + "/push") else { return nil }
 
         var payload: [String: String] = [
-            "device_key": key, "title": t, "body": body, "level": level.rawValue,
+            "device_key": key, "title": trimmedTitle, "body": body, "level": level.rawValue,
         ]
         if let group, !group.isEmpty { payload["group"] = group }
         guard let data = try? JSONSerialization.data(withJSONObject: payload) else { return nil }

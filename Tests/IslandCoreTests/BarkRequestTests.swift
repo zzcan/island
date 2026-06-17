@@ -25,6 +25,12 @@ import Foundation
         #expect(req?.url?.absoluteString == "https://x.example.com/push")
     }
 
+    @Test func stripsMultipleTrailingSlashes() {
+        let req = BarkRequest.build(server: "https://x.example.com//", deviceKey: "abc",
+                                    title: "hi", body: "", group: nil, level: .active)
+        #expect(req?.url?.absoluteString == "https://x.example.com/push")
+    }
+
     @Test func defaultsServerWhenEmpty() {
         let req = BarkRequest.build(server: "  ", deviceKey: "abc",
                                     title: "hi", body: "", group: nil, level: .active)
