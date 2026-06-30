@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.7](https://github.com/zzcan/island/compare/v0.1.6...v0.1.7) (2026-06-30)
+
+
+### Features
+
+* **app:** cap expanded panel at half screen height with inner scroll ([fcc6733](https://github.com/zzcan/island/commit/fcc673393a486280657498a035213ee5b9bf4f7c))
+* **app:** cap expanded panel at half screen height with inner scroll ([b8a0b45](https://github.com/zzcan/island/commit/b8a0b45017cac191d5ab3c6927c8c09ecb2e558a))
+
 ## [0.1.6](https://github.com/zzcan/island/compare/v0.1.5...v0.1.6) (2026-06-17)
 
 
