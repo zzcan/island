@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 import Combine
 import IslandCore
 
@@ -30,6 +31,15 @@ struct IslandView: View {
     // changes are deliberately NOT animated — they snap to each cursor position so
     // the island geometry tracks the pointer instead of lagging behind a spring.
     private var expandSpring: Animation { .spring(response: 0.34, dampingFraction: 0.78) }
+
+    /// Ceiling for the expanded panel: half the host screen's height. Taller content
+    /// scrolls inside the box (see expandedPanel) instead of tiling the panel down.
+    private var maxPanelHeight: CGFloat {
+        let screenH = (settings.targetScreen() ?? NSScreen.main)?.visibleFrame.height ?? 900
+        // Also stay within the host panel's fixed 720pt canvas (top-flush) so the box is
+        // never clipped by the window itself on very tall external displays.
+        return min(screenH * 0.5, 660)
+    }
 
     /// Scaled font for expanded-panel text (honours the content font-size setting).
     private func fs(_ size: CGFloat, _ weight: Font.Weight = .regular) -> Font {
@@ -95,7 +105,10 @@ struct IslandView: View {
         let cw = CGFloat(settings.collapsedWidth)
         let ew = CGFloat(settings.expandedWidth)
         let w = cw + (ew - cw) * e
-        let h = 34 + (max(expandedHeight, 34) - 34) * e
+        // The panel grows with its content but is capped at half the host screen;
+        // beyond that the content scrolls inside the box (see expandedPanel).
+        let panelHeight = min(expandedHeight, maxPanelHeight)
+        let h = 34 + (max(panelHeight, 34) - 34) * e
         let corner = 8 + (16 - 8) * e
         let shape = RoundedRectangle(cornerRadius: corner, style: .continuous)
         // Content crossfade: collapsed pill fades out over the first third of the
@@ -105,14 +118,6 @@ struct IslandView: View {
         let expandedOpacity = Double(max(0, (e - 0.22) / 0.78))
         return ZStack(alignment: .top) {
             expandedPanel
-                // Natural height regardless of the clipping container, so we can both
-                // measure it and let the box clip-reveal it.
-                .fixedSize(horizontal: false, vertical: true)
-                .background(GeometryReader { g in
-                    Color.clear
-                        .onAppear { expandedHeight = g.size.height }
-                        .onChange(of: g.size.height) { _, nh in expandedHeight = nh }
-                })
                 .opacity(expandedOpacity)
             collapsedCapsule
                 .opacity(collapsedOpacity)
@@ -171,6 +176,22 @@ struct IslandView: View {
     // MARK: - Expanded panel
 
     private var expandedPanel: some View {
+        // Capped at half-screen; taller content scrolls. The inner content reports its
+        // natural height (measured below) so the box knows how tall to grow, up to the cap.
+        ScrollView(.vertical, showsIndicators: false) {
+            expandedPanelContent
+                .background(GeometryReader { g in
+                    Color.clear
+                        .onAppear { expandedHeight = g.size.height }
+                        .onChange(of: g.size.height) { _, nh in expandedHeight = nh }
+                })
+        }
+        .frame(width: CGFloat(settings.expandedWidth), height: min(expandedHeight, maxPanelHeight))
+        // Only scroll when content actually overflows the cap; otherwise it's a plain panel.
+        .scrollDisabled(expandedHeight <= maxPanelHeight)
+    }
+
+    private var expandedPanelContent: some View {
         VStack(alignment: .leading, spacing: 0) {
             headerBar
                 .padding(.horizontal, 12).padding(.vertical, 8)
