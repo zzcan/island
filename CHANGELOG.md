@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.8](https://github.com/zzcan/island/compare/v0.1.7...v0.1.8) (2026-07-08)
+
+
+### Bug Fixes
+
+* **app:** reconnect audio graph after config change so sounds survive sleep/wake ([#12](https://github.com/zzcan/island/issues/12)) ([e1d9ac2](https://github.com/zzcan/island/commit/e1d9ac2f5bfd74a2dcb05988dbcdce7161f4831d))
+
 ## [0.1.7](https://github.com/zzcan/island/compare/v0.1.6...v0.1.7) (2026-06-30)
 
 
