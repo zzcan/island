@@ -31,8 +31,7 @@ final class SoundSynthesizer {
     var masterVolume: Float = 1
 
     init() {
-        engine.attach(player)
-        engine.connect(player, to: engine.mainMixerNode, format: format)
+        ensurePlayerConnected(engine, player, format: format)
         // AVAudioEngine stops itself on any audio-config change — sleep/wake, or an
         // output device / route switch (headphones, Bluetooth, external display).
         // Force it fully stopped here so the next play() re-starts it lazily; without
@@ -47,7 +46,13 @@ final class SoundSynthesizer {
     /// Start the engine on demand. Keyed on `engine.isRunning` rather than a one-shot
     /// flag, so it lazily starts on first use *and* recovers after the engine was
     /// stopped by an audio-config change.
+    ///
+    /// An `AVAudioEngineConfigurationChange` also *tears down* the player→mixer
+    /// connection, not just the running state — so we must re-establish the graph
+    /// (`ensurePlayerConnected`) before restarting, otherwise `scheduleBuffer` feeds a
+    /// disconnected node and every later play is silent (with no error to log).
     private func ensureRunning() {
+        ensurePlayerConnected(engine, player, format: format)
         guard !engine.isRunning else { return }
         do {
             try engine.start()
