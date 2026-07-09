@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.9](https://github.com/zzcan/island/compare/v0.1.8...v0.1.9) (2026-07-09)
+
+
+### Bug Fixes
+
+* **app:** recover audio on display-only sleep (息屏), not just full sleep ([#14](https://github.com/zzcan/island/issues/14)) ([062ff34](https://github.com/zzcan/island/commit/062ff342d618b9634345a88ca910b744f4a75c2e))
+
 ## [0.1.8](https://github.com/zzcan/island/compare/v0.1.7...v0.1.8) (2026-07-08)
 
 
