@@ -1,4 +1,5 @@
 import AVFoundation
+import AppKit
 import IslandCore
 
 /// Tiny chiptune-style synth: every event gets a short 8-bit blip sequence,
@@ -32,14 +33,41 @@ final class SoundSynthesizer {
 
     init() {
         ensurePlayerConnected(engine, player, format: format)
-        // AVAudioEngine stops itself on any audio-config change — sleep/wake, or an
-        // output device / route switch (headphones, Bluetooth, external display).
-        // Force it fully stopped here so the next play() re-starts it lazily; without
-        // this, every later play() would schedule silently into a dead engine.
+        registerRecoveryObservers()
+    }
+
+    /// Wire up the two recovery triggers that force the engine back through the lazy
+    /// restart path in `ensureRunning()`.
+    ///
+    /// 1. `AVAudioEngineConfigurationChange` — posted on a *full* audio teardown
+    ///    (system sleep/wake, output-device or route switch). It stops the engine and
+    ///    tears down the player→mixer connection; we stop here so the next play()
+    ///    rebuilds and restarts.
+    ///
+    /// 2. Screen/system **wake** (`NSWorkspace`) — a *display-only* sleep (息屏, no
+    ///    system sleep) can idle or reset the output device *without* ever posting an
+    ///    `AVAudioEngineConfigurationChange`, leaving the engine reporting
+    ///    `isRunning == true` over dead audio IO — silent, with no error and no
+    ///    notification to react to. So we also stop the engine on wake, which forces
+    ///    the same lazy restart even when no config-change arrives. Stopping an already
+    ///    healthy engine is harmless: the next play() simply restarts it (one blip of
+    ///    startup latency), and sounds here are infrequent events.
+    private func registerRecoveryObservers() {
         NotificationCenter.default.addObserver(
             forName: .AVAudioEngineConfigurationChange, object: engine, queue: nil
         ) { [weak self] _ in
+            NSLog("island: audio config change — stopping engine for lazy restart")
             Task { @MainActor in self?.engine.stop() }
+        }
+
+        // NSWorkspace wake notifications are posted on its *own* center, not the default
+        // one, and are delivered on the main thread.
+        let ws = NSWorkspace.shared.notificationCenter
+        for name in [NSWorkspace.screensDidWakeNotification, NSWorkspace.didWakeNotification] {
+            ws.addObserver(forName: name, object: nil, queue: nil) { [weak self] note in
+                NSLog("island: \(note.name.rawValue) — stopping audio engine for lazy restart")
+                Task { @MainActor in self?.engine.stop() }
+            }
         }
     }
 
@@ -52,11 +80,13 @@ final class SoundSynthesizer {
     /// (`ensurePlayerConnected`) before restarting, otherwise `scheduleBuffer` feeds a
     /// disconnected node and every later play is silent (with no error to log).
     private func ensureRunning() {
+        let wasDisconnected = engine.outputConnectionPoints(for: player, outputBus: 0).isEmpty
         ensurePlayerConnected(engine, player, format: format)
         guard !engine.isRunning else { return }
         do {
             try engine.start()
             player.play()
+            NSLog("island: audio engine (re)started (reconnected=\(wasDisconnected))")
         } catch {
             NSLog("island: audio engine start failed: \(error)")
         }
