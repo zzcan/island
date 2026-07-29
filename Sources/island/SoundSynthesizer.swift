@@ -22,9 +22,16 @@ final class SoundSynthesizer {
         let volume: Float
     }
 
-    private let engine = AVAudioEngine()
-    private let player = AVAudioPlayerNode()
-    private let format = AVAudioFormat(standardFormatWithSampleRate: 44_100, channels: 1)!
+    /// Engine + player lifecycle lives in IslandCore so the recovery behavior is
+    /// testable. Recovery is always a full engine rebuild: after a long display-only
+    /// sleep (息屏) the output unit can stay bound to a dead AudioDeviceID while
+    /// every API reports healthy, and stop()+start() reuses that dead binding —
+    /// which is why the two previous in-place-restart fixes kept regressing.
+    private let audio = RecoverableAudioEngine(
+        format: AVAudioFormat(standardFormatWithSampleRate: 44_100, channels: 1)!,
+        log: { NSLog("island: \($0)") }
+    )
+    private var format: AVAudioFormat { audio.format }
 
     /// Master on/off — gated by Settings in AppModel; kept as a belt-and-braces flag.
     var enabled = true
@@ -32,80 +39,37 @@ final class SoundSynthesizer {
     var masterVolume: Float = 1
 
     init() {
-        ensurePlayerConnected(engine, player, format: format)
-        registerRecoveryObservers()
+        registerWakeObservers()
     }
 
-    /// Wire up the two recovery triggers that force the engine back through the lazy
-    /// restart path in `ensureRunning()`.
-    ///
-    /// 1. `AVAudioEngineConfigurationChange` — posted on a *full* audio teardown
-    ///    (system sleep/wake, output-device or route switch). It stops the engine and
-    ///    tears down the player→mixer connection; we stop here so the next play()
-    ///    rebuilds and restarts.
-    ///
-    /// 2. Screen/system **wake** (`NSWorkspace`) — a *display-only* sleep (息屏, no
-    ///    system sleep) can idle or reset the output device *without* ever posting an
-    ///    `AVAudioEngineConfigurationChange`, leaving the engine reporting
-    ///    `isRunning == true` over dead audio IO — silent, with no error and no
-    ///    notification to react to. So we also stop the engine on wake, which forces
-    ///    the same lazy restart even when no config-change arrives. Stopping an already
-    ///    healthy engine is harmless: the next play() simply restarts it (one blip of
-    ///    startup latency), and sounds here are infrequent events.
-    private func registerRecoveryObservers() {
-        NotificationCenter.default.addObserver(
-            forName: .AVAudioEngineConfigurationChange, object: engine, queue: nil
-        ) { [weak self] _ in
-            NSLog("island: audio config change — stopping engine for lazy restart")
-            Task { @MainActor in self?.engine.stop() }
-        }
-
-        // NSWorkspace wake notifications are posted on its *own* center, not the default
-        // one, and are delivered on the main thread.
+    /// Screen/system **wake** (`NSWorkspace`) can follow a display-only sleep that
+    /// killed or re-published the output device *without* ever posting an
+    /// `AVAudioEngineConfigurationChange` (RecoverableAudioEngine observes that one
+    /// itself). Poison the engine on wake so the next play() rebuilds it. These are
+    /// posted on NSWorkspace's *own* center, and only reach app processes — which
+    /// is also why they belong here and not in IslandCore.
+    private func registerWakeObservers() {
         let ws = NSWorkspace.shared.notificationCenter
         for name in [NSWorkspace.screensDidWakeNotification, NSWorkspace.didWakeNotification] {
             ws.addObserver(forName: name, object: nil, queue: nil) { [weak self] note in
-                NSLog("island: \(note.name.rawValue) — stopping audio engine for lazy restart")
-                Task { @MainActor in self?.engine.stop() }
+                NSLog("island: \(note.name.rawValue) — audio engine will rebuild on next play")
+                Task { @MainActor in self?.audio.stopForRecovery() }
             }
-        }
-    }
-
-    /// Start the engine on demand. Keyed on `engine.isRunning` rather than a one-shot
-    /// flag, so it lazily starts on first use *and* recovers after the engine was
-    /// stopped by an audio-config change.
-    ///
-    /// An `AVAudioEngineConfigurationChange` also *tears down* the player→mixer
-    /// connection, not just the running state — so we must re-establish the graph
-    /// (`ensurePlayerConnected`) before restarting, otherwise `scheduleBuffer` feeds a
-    /// disconnected node and every later play is silent (with no error to log).
-    private func ensureRunning() {
-        let wasDisconnected = engine.outputConnectionPoints(for: player, outputBus: 0).isEmpty
-        ensurePlayerConnected(engine, player, format: format)
-        guard !engine.isRunning else { return }
-        do {
-            try engine.start()
-            player.play()
-            NSLog("island: audio engine (re)started (reconnected=\(wasDisconnected))")
-        } catch {
-            NSLog("island: audio engine start failed: \(error)")
         }
     }
 
     func play(_ sound: Sound) {
         guard enabled else { return }
-        ensureRunning()
-        guard engine.isRunning, let buffer = render(sound) else { return }
-        player.scheduleBuffer(buffer, at: nil, options: [], completionHandler: nil)
+        guard audio.ensureRunning(), let buffer = render(sound) else { return }
+        audio.player.scheduleBuffer(buffer, at: nil, options: [], completionHandler: nil)
     }
 
     /// Audition a sound from Settings regardless of the per-event toggles, at the
     /// current master volume.
     func preview(_ sound: Sound) {
         masterVolume = Float(Settings.shared.soundVolume)
-        ensureRunning()
-        guard engine.isRunning, let buffer = render(sound) else { return }
-        player.scheduleBuffer(buffer, at: nil, options: [], completionHandler: nil)
+        guard audio.ensureRunning(), let buffer = render(sound) else { return }
+        audio.player.scheduleBuffer(buffer, at: nil, options: [], completionHandler: nil)
     }
 
     /// Play the sound that matches a session's new status (nil → silent).
