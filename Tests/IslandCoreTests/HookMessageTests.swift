@@ -14,7 +14,7 @@ import Foundation
 
     @Test func decodeClaudeInput() throws {
         let json = #"{"session_id":"abc","cwd":"/x/proj","hook_event_name":"Notification","message":"need perms"}"#
-        let input = try ClaudeHookInput.decode(Data(json.utf8))
+        let input = try AgentHookInput.decode(Data(json.utf8))
         #expect(input.session_id == "abc")
         #expect(input.cwd == "/x/proj")
         #expect(input.hook_event_name == "Notification")
@@ -23,10 +23,18 @@ import Foundation
 
     @Test func decodeToleratesMissingFields() throws {
         let json = #"{"hook_event_name":"Stop","session_id":"s1"}"#
-        let input = try ClaudeHookInput.decode(Data(json.utf8))
+        let input = try AgentHookInput.decode(Data(json.utf8))
         #expect(input.session_id == "s1")
         #expect(input.cwd == nil)
         #expect(input.message == nil)
+    }
+
+    @Test func decodeCodexFields() throws {
+        let json = #"{"session_id":"thr_123","hook_event_name":"Stop","model":"gpt-5.6-sol","permission_mode":"default","last_assistant_message":"Implemented and tested."}"#
+        let input = try AgentHookInput.decode(Data(json.utf8))
+        #expect(input.model == "gpt-5.6-sol")
+        #expect(input.permission_mode == "default")
+        #expect(input.last_assistant_message == "Implemented and tested.")
     }
 
     @Test func buildMessageReadsCmuxFromEnv() throws {
@@ -110,5 +118,25 @@ import Foundation
         let json = #"{"session_id":"s1","hook_event_name":"PostToolUse","permission_mode":"bypassPermissions"}"#
         let msg = HookMessage.build(stdin: Data(json.utf8), env: [:], tmux: nil)
         #expect(msg?.permissionMode == "bypassPermissions")
+    }
+
+    @Test func buildCodexMessageUsesStableHookFields() {
+        let json = #"{"session_id":"thr_123","cwd":"/Users/me/proj","hook_event_name":"Stop","model":"gpt-5.6-sol","last_assistant_message":"Done."}"#
+        let msg = HookMessage.build(stdin: Data(json.utf8), env: [:], tmux: nil,
+                                    provider: .codex)
+        #expect(msg?.provider == .codex)
+        #expect(msg?.model == "gpt-5.6-sol")
+        #expect(msg?.assistantText == "Done.")
+    }
+
+    @Test func codexPermissionRequestBecomesNonBlockingNotification() {
+        let json = #"{"session_id":"thr_123","cwd":"/Users/me/proj","hook_event_name":"PermissionRequest","model":"gpt-5.6-sol","tool_name":"Bash","tool_input":{"command":"git push","description":"Push changes to origin"}}"#
+        let input = try! AgentHookInput.decode(Data(json.utf8))
+        let msg = HookMessage.codexPermissionNotification(input: input, env: [:],
+                                                          tmux: nil)
+        #expect(msg?.event == .notification)
+        #expect(msg?.provider == .codex)
+        #expect(msg?.message == "Push changes to origin")
+        #expect(msg?.action == "Bash git push")
     }
 }

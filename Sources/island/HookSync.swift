@@ -1,8 +1,7 @@
 import Foundation
 import IslandCore
 
-/// Glue between the app and HookRegistrar: silently keeps vibe-hook registered in
-/// Claude Code's settings on every launch and whenever the plan-review toggle flips.
+/// Keeps vibe-hook registered for Claude Code and Codex on every app launch.
 enum HookSync {
     /// No-op when the bundled vibe-hook is missing (e.g. running the bare executable
     /// from `swift run` instead of the .app bundle).
@@ -10,9 +9,12 @@ enum HookSync {
         let hookPath = Bundle.main.bundlePath + "/Contents/MacOS/vibe-hook"
         guard FileManager.default.isExecutableFile(atPath: hookPath) else { return }
         let env = ProcessInfo.processInfo.environment
-        let settingsPath = env["CLAUDE_SETTINGS"] ?? (NSHomeDirectory() + "/.claude/settings.json")
+        let claudePath = env["CLAUDE_SETTINGS"] ?? (NSHomeDirectory() + "/.claude/settings.json")
+        let codexHome = env["CODEX_HOME"] ?? (NSHomeDirectory() + "/.codex")
+        let codexPath = codexHome + "/hooks.json"
         DispatchQueue.global(qos: .utility).async {
-            HookRegistrar.sync(settingsPath: settingsPath, hookPath: hookPath, planReview: planReview)
+            HookRegistrar.sync(settingsPath: claudePath, hookPath: hookPath, planReview: planReview)
+            HookRegistrar.syncCodex(hooksPath: codexPath, hookPath: hookPath)
         }
     }
 }

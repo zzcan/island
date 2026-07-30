@@ -4,15 +4,15 @@
 ![platform](https://img.shields.io/badge/platform-macOS%2015%2B-blue)
 [![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-把 Mac 刘海变成 Claude Code 的「灵动岛」:一个常驻屏幕顶部的悬浮胶囊,聚合所有正在运行的
-Claude Code 会话状态。哪个会话在干活、哪个在等你输入、哪个已经完成,一眼看清;点一下直接跳回
-对应的终端窗口。
+把 Mac 刘海变成 Claude Code / Codex 的「灵动岛」:一个常驻屏幕顶部的悬浮胶囊,聚合所有
+正在运行的 coding agent 会话状态。哪个会话在干活、哪个在等你输入、哪个已经完成,一眼看清;
+点一下直接跳回对应的终端窗口。
 
 ## 功能
 
-- **会话聚合** — 同时跑多个 Claude Code 会话时,每个会话的状态(工作中 / 等待输入 / 已完成 /
-  空闲)、项目名、最近一条你的提问、Claude 的最新回复、任务清单进度、模型与权限模式,全部汇总
-  在刘海下的面板里。
+- **会话聚合** — 同时跑多个 Claude Code / Codex 会话时,每个会话的状态(工作中 / 等待输入 /
+  已完成 / 空闲)、项目名、最近一条你的提问、agent 的最新回复、模型与权限模式,全部汇总在刘海
+  下的面板里;Claude Code 会话还会显示任务清单进度。
 - **像素小人状态指示** — 折叠态的胶囊上,每个会话是一只按状态着色的像素精灵(可选 4 套主题:
   invaders / ghosts / mario / slime,4 种配色:原色 / 荧光绿 / 琥珀 / Game Boy)。
 - **点击跳转终端** — 点会话行,自动激活它所在的终端窗口和标签页。支持 iTerm2、Terminal.app
@@ -74,18 +74,34 @@ git clone https://github.com/zzcan/island.git && cd island
 > 计划审查的 `PermissionRequest` 事件跟随设置中的「计划审查」开关:打开即注册、关闭即摘除
 > (对新会话生效)。岛未响应时自动回落到 Claude 自己的终端确认,不会卡住会话。
 
+## 接入 Codex
+
+island 启动时也会把同一个 `vibe-hook` 幂等注册进 `~/.codex/hooks.json`,监听
+`SessionStart` / `UserPromptSubmit` / `PostToolUse` / `PermissionRequest` / `Stop` /
+`SessionEnd`。Codex 会话的模型和最新回复直接取自稳定 hook 字段,不会依赖其非稳定的 transcript
+格式。
+
+Codex 会要求你信任新发现的非托管 hook。首次启动 Codex 后执行 `/hooks`,检查来源和命令后信任
+island 的条目;hook 命令未变化时无需重复操作。若 `[features].hooks = false` 或组织策略只允许
+managed hooks,island 无法接收这些会话事件。
+
+第一阶段不接管 Codex 审批:`PermissionRequest` 会让 island 显示「需要处理」并通知你,随后 hook
+立即退出,审批仍在 Codex 原生界面中完成。CLI 会话可以沿用现有 iTerm2、Terminal、Ghostty、
+tmux 和 cmux 精确跳转;Codex 桌面 App 暂不支持精确定位到具体聊天。
+
 ## 工作原理
 
 ```
-Claude Code(每个事件调用一次 hook)
+Claude Code / Codex(每个事件调用一次 hook)
    │
    ▼
 vibe-hook(Swift 二进制,常驻 app 包内)
    │  · 读 stdin 的事件 JSON(session_id / cwd / tool_name / prompt ...)
    │  · 补全上下文:tmux pane、GUI 终端识别(iTerm2/Terminal/Ghostty)、
-   │    会话 tty(沿进程树向上找)、transcript 里的最新回复与模型、
-   │    ~/.claude/tasks/<session_id>/ 的任务清单
-   │  · 永远 exit 0,绝不阻塞或破坏 Claude 会话
+   │    会话 tty(沿进程树向上找)
+   │  · Claude:从 transcript 和 ~/.claude/tasks 补全回复、模型、任务
+   │  · Codex:直接读取 hook 的 model / last_assistant_message 稳定字段
+   │  · 永远 exit 0,绝不阻塞或破坏 agent 会话
    ▼
 Unix socket(~/Library/Application Support/island/run.sock,newline-delimited JSON)
    │
@@ -125,7 +141,7 @@ swift test                 # 跑测试
 |---|---|
 | `Sources/IslandCore` | 平台无关核心:会话模型、hook 消息、transcript 解析、跳转计划 |
 | `Sources/island` | app 本体:悬浮窗、SwiftUI 视图、socket server、跳转执行、设置 |
-| `Sources/vibe-hook` | Claude Code hook 端二进制 |
+| `Sources/vibe-hook` | Claude Code / Codex 共用的 hook 端二进制 |
 | `Scripts/` | 打包、hook 安装脚本 |
 
 ### 发布流程

@@ -67,6 +67,24 @@ private func commands(_ settings: [String: Any], _ event: String) -> [String] {
             #expect(commands(updated, event) == [hook], "event \(event)")
         }
     }
+
+    @Test func codexRegistersSupportedEventsWithProviderArgument() {
+        let updated = try! #require(HookRegistrar.updatedCodex(hooksFile: [:], hookPath: hook))
+        for event in HookRegistrar.codexEvents {
+            #expect(commands(updated, event) == ["'\(hook)' --provider codex"])
+        }
+        #expect(commands(updated, "Notification").isEmpty)
+    }
+
+    @Test func codexRegistrationIsIdempotentAndReplacesStalePaths() {
+        let stale = "/Users/me/old/island.app/Contents/MacOS/vibe-hook"
+        let once = HookRegistrar.updatedCodex(hooksFile: [:], hookPath: stale)!
+        let updated = try! #require(HookRegistrar.updatedCodex(hooksFile: once, hookPath: hook))
+        for event in HookRegistrar.codexEvents {
+            #expect(commands(updated, event) == ["'\(hook)' --provider codex"])
+        }
+        #expect(HookRegistrar.updatedCodex(hooksFile: updated, hookPath: hook) == nil)
+    }
 }
 
 @Suite struct HookRegistrarSyncTests {
@@ -105,5 +123,14 @@ private func commands(_ settings: [String: Any], _ event: String) -> [String] {
         try! "not json {".write(toFile: path, atomically: true, encoding: .utf8)
         #expect(!HookRegistrar.sync(settingsPath: path, hookPath: hook, planReview: false))
         #expect(try! String(contentsOfFile: path, encoding: .utf8) == "not json {")
+    }
+
+
+    @Test func createsCodexHooksFileWhenMissing() {
+        let path = tempDir() + "/hooks.json"
+        #expect(HookRegistrar.syncCodex(hooksPath: path, hookPath: hook))
+        let data = try! Data(contentsOf: URL(fileURLWithPath: path))
+        let parsed = try! JSONSerialization.jsonObject(with: data) as! [String: Any]
+        #expect(commands(parsed, "PermissionRequest") == ["'\(hook)' --provider codex"])
     }
 }

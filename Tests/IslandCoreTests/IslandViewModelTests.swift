@@ -34,11 +34,18 @@ import Foundation
     }
 
     @Test func rowsMapscwdAndAction() {
-        var s = Session(id: "s1", title: "proj", cwd: "/Users/me/proj", status: .working,
+        let s = Session(id: "s1", title: "proj", cwd: "/Users/me/proj", status: .working,
                         cmux: nil, tmux: nil, lastActivity: Date(timeIntervalSince1970: 1),
                         lastAction: "Read src/main.ts")
         let d = IslandDisplay.from([s])
         #expect(d.rows.first?.cwd == "/Users/me/proj")
         #expect(d.rows.first?.action == "Read src/main.ts")
+    }
+
+    @Test func rowsExposeProviderForFallbackBadge() {
+        var s = session("codex", .working, 1)
+        s.provider = .codex
+        let d = IslandDisplay.from([s])
+        #expect(d.rows.first?.provider == .codex)
     }
 }

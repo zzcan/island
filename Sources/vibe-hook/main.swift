@@ -1,7 +1,7 @@
 import Foundation
 import IslandCore
 
-// vibe-hook: invoked by Claude Code per event. Reads JSON on stdin, enriches with
+// vibe-hook: invoked by Claude Code or Codex per event. Reads JSON on stdin, enriches with
 // cmux env + tmux context, sends one JSON line to the island socket. ALWAYS exits 0.
 
 /// Controlling tty of `pid` via `ps`, read from the process table — independent of
@@ -56,7 +56,7 @@ func resolveTTY() -> String? {
 /// island and blocks for the user's decision, then prints Claude's expected stdout JSON.
 /// Prints nothing (→ Claude's own terminal prompt) for unhandled tools, missing data, or
 /// when the island isn't reachable / times out.
-func handlePermissionRequest(stdin: Data, input: ClaudeHookInput?, env: [String: String]) {
+func handlePermissionRequest(stdin: Data, input: AgentHookInput?, env: [String: String]) {
     guard let input, let sid = input.session_id, !sid.isEmpty else { return }
     guard input.tool_name == "ExitPlanMode",
           let plan = input.tool_input?.plan, !plan.isEmpty else { return }
@@ -160,28 +160,19 @@ func loadTranscript(path: String) -> (text: String?, model: String?) {
 let env = ProcessInfo.processInfo.environment
 let stdin = FileHandle.standardInput.readDataToEndOfFile()
 let tmux = resolveTmux(env: env, runner: ProcessRunner())
+let arguments = CommandLine.arguments
+let provider: AgentProvider = {
+    guard let idx = arguments.firstIndex(of: "--provider"), arguments.indices.contains(idx + 1),
+          let parsed = AgentProvider(rawValue: arguments[idx + 1]) else { return .claude }
+    return parsed
+}()
 
 // Decode hook input to get session_id and transcript_path for enrichment
-let hookInput = try? ClaudeHookInput.decode(stdin)
+let hookInput = try? AgentHookInput.decode(stdin)
 let home = env["HOME"] ?? NSHomeDirectory()
 
-// PermissionRequest: interactive approval. We currently own only ExitPlanMode (plan
-// review) — block on the island for the user's decision and print Claude's expected
-// stdout. Anything we don't handle prints nothing → Claude shows its own terminal prompt.
-if hookInput?.hook_event_name == "PermissionRequest" {
-    handlePermissionRequest(stdin: stdin, input: hookInput, env: env)
-    exit(0)
-}
-
-// Load tasks if session_id is available
-let tasks: [TaskItem]? = hookInput?.session_id.flatMap { loadTasks(sessionId: $0, home: home) }
-
-// Load assistant text + model id if transcript_path is available
-let transcript: (text: String?, model: String?) =
-    hookInput?.transcript_path.map { loadTranscript(path: $0) } ?? (text: nil, model: nil)
-
-// Classify the GUI terminal (iTerm2 / Terminal.app / Ghostty) for precise jumping.
-// Skipped inside tmux (env unreliable). For Ghostty, stamp the window title via OSC 2.
+// Resolve jump context before dispatching PermissionRequest: Codex approvals are sent
+// as ordinary needs-input notifications, so their rows must still jump to the terminal.
 let resolvedTTY = resolveTTY()
 let terminal: TerminalContext? = hookInput?.session_id.flatMap { sid in
     TerminalDetect.detect(env: env, cwd: hookInput?.cwd, sessionId: sid, tty: resolvedTTY)
@@ -190,9 +181,42 @@ if let term = terminal, term.kind == .ghostty, let title = term.ghosttyTitle {
     emitGhosttyTitle(title, ttyPath: resolvedTTY)
 }
 
+// PermissionRequest: interactive approval. We currently own only ExitPlanMode (plan
+// review) — block on the island for the user's decision and print Claude's expected
+// stdout. Anything we don't handle prints nothing → Claude shows its own terminal prompt.
+if hookInput?.hook_event_name == "PermissionRequest" {
+    if provider == .codex {
+        // Notification only: send and exit with no stdout so Codex immediately shows
+        // its native approval prompt. Island never becomes an approval bottleneck.
+        if let input = hookInput,
+           let msg = HookMessage.codexPermissionNotification(input: input, env: env,
+                                                              tmux: tmux, terminal: terminal),
+           let line = try? JSONEncoder().encode(msg) {
+            var payload = line
+            payload.append(0x0A)
+            UnixSocketClient.send(payload, toPath: SocketPath.resolve(env: env))
+        }
+    } else {
+        handlePermissionRequest(stdin: stdin, input: hookInput, env: env)
+    }
+    exit(0)
+}
+
+// Load tasks if session_id is available
+let tasks: [TaskItem]? = provider == .claude
+    ? hookInput?.session_id.flatMap { loadTasks(sessionId: $0, home: home) }
+    : nil
+
+// Claude currently needs transcript enrichment. Codex provides stable top-level model
+// and Stop.last_assistant_message fields, and its transcript format is explicitly unstable.
+let transcript: (text: String?, model: String?) =
+    provider == .claude
+        ? (hookInput?.transcript_path.map { loadTranscript(path: $0) } ?? (text: nil, model: nil))
+        : (text: nil, model: nil)
+
 if let msg = HookMessage.build(stdin: stdin, env: env, tmux: tmux, terminal: terminal,
                                assistantText: transcript.text, tasks: tasks,
-                               model: transcript.model),
+                               model: transcript.model, provider: provider),
    let line = try? JSONEncoder().encode(msg) {
     var payload = line
     payload.append(0x0A) // newline-delimited

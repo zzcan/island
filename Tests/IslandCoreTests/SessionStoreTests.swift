@@ -8,11 +8,11 @@ import Foundation
     private func msg(_ event: IslandEvent, _ sid: String = "s1",
                      cwd: String? = "/Users/me/proj", message: String? = nil,
                      cmux: CmuxContext? = nil, permissionMode: String? = nil,
-                     model: String? = nil) -> HookMessage {
+                     model: String? = nil, provider: AgentProvider? = nil) -> HookMessage {
         HookMessage(event: event, sessionId: sid, cwd: cwd,
                     title: cwd.map { ($0 as NSString).lastPathComponent },
                     message: message, cmux: cmux, tmux: nil,
-                    permissionMode: permissionMode, model: model)
+                    permissionMode: permissionMode, model: model, provider: provider)
     }
 
     @Test func sessionStartRegistersIdle() {
@@ -78,6 +78,14 @@ import Foundation
         // A /model switch surfaces on the next transcript read.
         _ = store.apply(msg(.postToolUse, model: "claude-sonnet-4-6"), now: t0)
         #expect(store.sessions["s1"]?.model == "claude-sonnet-4-6")
+    }
+
+    @Test func providerStoredAndKeptAcrossEventsWithout() {
+        let store = SessionStore()
+        _ = store.apply(msg(.sessionStart, provider: .codex), now: t0)
+        #expect(store.sessions["s1"]?.provider == .codex)
+        _ = store.apply(msg(.stop), now: t0)
+        #expect(store.sessions["s1"]?.provider == .codex)
     }
 
     @Test func cmuxContextStoredOnLatestMessage() {

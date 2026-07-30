@@ -11,7 +11,7 @@ public enum PermissionTint: String, Equatable, Sendable {
     case full      // bypassPermissions — auto-approves everything
 }
 
-/// A localized label + tint derived from Claude Code's raw `permission_mode`.
+/// A localized label + tint derived from Claude Code or Codex `permission_mode`.
 public struct PermissionMode: Equatable, Sendable {
     public let label: String
     public let tint: PermissionTint
