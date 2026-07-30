@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.10](https://github.com/zzcan/island/compare/v0.1.9...v0.1.10) (2026-07-30)
+
+
+### Features
+
+* **app:** add Codex session integration ([#17](https://github.com/zzcan/island/issues/17)) ([679a060](https://github.com/zzcan/island/commit/679a060bc4e750f8b8b3b21df6391607c6585c3e))
+
+
+### Bug Fixes
+
+* **app:** rebuild audio engine after stale device binding ([911f40a](https://github.com/zzcan/island/commit/911f40a590f250a195e76d92a0d608a40bd53a7e))
+
 ## [0.1.9](https://github.com/zzcan/island/compare/v0.1.8...v0.1.9) (2026-07-09)
 
 
