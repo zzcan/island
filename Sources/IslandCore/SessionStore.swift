@@ -21,7 +21,8 @@ public final class SessionStore {
 
         var s = sessions[m.sessionId] ?? Session(
             id: m.sessionId, title: m.title ?? m.sessionId, cwd: m.cwd, status: .idle,
-            cmux: nil, tmux: nil, lastActivity: now)
+            cmux: nil, tmux: nil, lastActivity: now,
+            provider: m.provider ?? .claude)
 
         // Refresh fields the message carries.
         if let title = m.title { s.title = title }
@@ -39,6 +40,7 @@ public final class SessionStore {
         // model is only resolved once the transcript has an assistant message; keep
         // the last known id so it survives events before/without one.
         if let md = m.model { s.model = md }
+        if let provider = m.provider { s.provider = provider }
         s.lastActivity = now
 
         var request: NotificationRequest? = nil

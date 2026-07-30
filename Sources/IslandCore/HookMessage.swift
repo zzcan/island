@@ -16,6 +16,7 @@ public struct HookMessage: Codable, Equatable, Sendable {
     public let tasks: [TaskItem]?
     public let permissionMode: String?
     public let model: String?
+    public let provider: AgentProvider?
     // Interactive approval (permissionRequest) only:
     public let requestId: String?   // correlates the reply back to the blocked hook
     public let toolName: String?    // e.g. "ExitPlanMode"
@@ -27,13 +28,15 @@ public struct HookMessage: Codable, Equatable, Sendable {
                 prompt: String? = nil, action: String? = nil,
                 assistantText: String? = nil, tasks: [TaskItem]? = nil,
                 permissionMode: String? = nil, model: String? = nil,
-                requestId: String? = nil, toolName: String? = nil, plan: String? = nil) {
+                requestId: String? = nil, toolName: String? = nil, plan: String? = nil,
+                provider: AgentProvider? = nil) {
         self.event = event; self.sessionId = sessionId; self.cwd = cwd; self.title = title
         self.message = message; self.cmux = cmux; self.tmux = tmux; self.terminal = terminal
         self.prompt = prompt
         self.action = action; self.assistantText = assistantText; self.tasks = tasks
         self.permissionMode = permissionMode; self.model = model
         self.requestId = requestId; self.toolName = toolName; self.plan = plan
+        self.provider = provider
     }
 
     /// Pure builder. `tmux`/`terminal` are passed in (the caller resolves them via
@@ -42,34 +45,60 @@ public struct HookMessage: Codable, Equatable, Sendable {
     public static func build(stdin: Data, env: [String: String], tmux: TmuxContext?,
                              terminal: TerminalContext? = nil,
                              assistantText: String? = nil, tasks: [TaskItem]? = nil,
-                             model: String? = nil) -> HookMessage? {
-        guard let input = try? ClaudeHookInput.decode(stdin) else { return nil }
+                             model: String? = nil,
+                             provider: AgentProvider = .claude) -> HookMessage? {
+        guard let input = try? AgentHookInput.decode(stdin) else { return nil }
         guard let name = input.hook_event_name, let event = IslandEvent(claudeName: name) else { return nil }
         guard let sid = input.session_id, !sid.isEmpty else { return nil }
 
-        var cmux: CmuxContext? = nil
-        if let ws = env["CMUX_WORKSPACE_ID"], let sock = env["CMUX_SOCKET_PATH"] {
-            cmux = CmuxContext(workspaceId: ws, surfaceId: env["CMUX_SURFACE_ID"], socketPath: sock)
-        }
+        let cmux = cmuxContext(env: env)
 
         let title = input.cwd.map { ($0 as NSString).lastPathComponent }
 
-        var action: String? = nil
-        if event == .postToolUse, let tool = input.tool_name {
-            let arg = input.tool_input?.file_path ?? input.tool_input?.command
-                      ?? input.tool_input?.pattern ?? input.tool_input?.path
-            if let arg, !arg.isEmpty {
-                action = "\(tool) \(HookMessage.shortenArg(arg))"
-            } else {
-                action = tool
-            }
-        }
+        let action = event == .postToolUse ? action(tool: input.tool_name, input: input.tool_input) : nil
 
         return HookMessage(event: event, sessionId: sid, cwd: input.cwd, title: title,
                            message: input.message, cmux: cmux, tmux: tmux, terminal: terminal,
                            prompt: input.prompt,
-                           action: action, assistantText: assistantText, tasks: tasks,
-                           permissionMode: input.permission_mode, model: model)
+                           action: action,
+                           assistantText: assistantText ?? input.last_assistant_message,
+                           tasks: tasks, permissionMode: input.permission_mode,
+                           model: model ?? input.model, provider: provider)
+    }
+
+    /// Codex approvals remain owned by Codex in phase one. This converts the hook into
+    /// a fire-and-forget island notification; vibe-hook prints no stdout, so Codex
+    /// immediately continues to its native approval prompt instead of being blocked.
+    public static func codexPermissionNotification(input: AgentHookInput,
+                                                   env: [String: String],
+                                                   tmux: TmuxContext?,
+                                                   terminal: TerminalContext? = nil) -> HookMessage? {
+        guard input.hook_event_name == "PermissionRequest",
+              let sid = input.session_id, !sid.isEmpty else { return nil }
+        let cmux = cmuxContext(env: env)
+        let title = input.cwd.map { ($0 as NSString).lastPathComponent }
+        let tool = input.tool_name ?? "操作"
+        let message = input.tool_input?.description ?? "\(tool) 需要审批"
+        return HookMessage(event: .notification, sessionId: sid, cwd: input.cwd,
+                           title: title, message: message, cmux: cmux, tmux: tmux,
+                           terminal: terminal,
+                           action: action(tool: input.tool_name, input: input.tool_input),
+                           permissionMode: input.permission_mode, model: input.model,
+                           provider: .codex)
+    }
+
+    private static func action(tool: String?, input: ToolInput?) -> String? {
+        guard let tool else { return nil }
+        let arg = input?.file_path ?? input?.command ?? input?.pattern ?? input?.path
+        if let arg, !arg.isEmpty { return "\(tool) \(shortenArg(arg))" }
+        return tool
+    }
+
+    private static func cmuxContext(env: [String: String]) -> CmuxContext? {
+        guard let workspace = env["CMUX_WORKSPACE_ID"],
+              let socket = env["CMUX_SOCKET_PATH"] else { return nil }
+        return CmuxContext(workspaceId: workspace, surfaceId: env["CMUX_SURFACE_ID"],
+                           socketPath: socket)
     }
 
     /// If the string contains "/", returns the last 2 path components joined by "/".

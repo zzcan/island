@@ -13,15 +13,18 @@ public struct IslandRow: Equatable, Identifiable, Sendable {
     public let tasks: [TaskItem]
     public let permissionMode: String?
     public let model: String?
+    public let provider: AgentProvider
     public init(id: String, title: String, status: SessionStatus, lastActivity: Date,
                 prompt: String? = nil, terminal: String = "",
                 cwd: String? = nil, action: String? = nil,
                 assistant: String? = nil, tasks: [TaskItem] = [],
-                permissionMode: String? = nil, model: String? = nil) {
+                permissionMode: String? = nil, model: String? = nil,
+                provider: AgentProvider = .claude) {
         self.id = id; self.title = title; self.status = status; self.lastActivity = lastActivity
         self.prompt = prompt; self.terminal = terminal; self.cwd = cwd; self.action = action
         self.assistant = assistant; self.tasks = tasks; self.permissionMode = permissionMode
         self.model = model
+        self.provider = provider
     }
 }
 
@@ -58,6 +61,7 @@ public struct IslandDisplay: Equatable, Sendable {
                                          prompt: $0.lastPrompt, terminal: terminalLabel($0),
                                          cwd: $0.cwd, action: $0.lastAction,
                                          assistant: $0.lastAssistant, tasks: $0.tasks,
-                                         permissionMode: $0.permissionMode, model: $0.model) })
+                                         permissionMode: $0.permissionMode, model: $0.model,
+                                         provider: $0.provider) })
     }
 }
